@@ -10,13 +10,13 @@ import { useUser } from '@/hooks/useUser';
 
 export default function ChatPage() {
   const router = useRouter();
-  const { user, isClient, isLoading } = useUser();
+  const { user, isClient } = useUser();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
   useEffect(() => {
     // Wait for client-side hydration to complete
-    if (!isClient || isLoading) return;
+    if (!isClient) return;
 
     // Check token directly from localStorage
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -25,7 +25,7 @@ export default function ChatPage() {
       console.log('🚪 No token or user, redirecting to login...');
       router.push('/login');
     }
-  }, [isClient, isLoading, user, router]);
+  }, [isClient, user, router]);
 
   const handleSelectConversation = (conversationId: string) => {
     setSelectedConversationId(conversationId);
@@ -33,7 +33,7 @@ export default function ChatPage() {
   };
 
   // Show loading while checking auth
-  if (!isClient || isLoading) {
+  if (!isClient) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Loading...</p>

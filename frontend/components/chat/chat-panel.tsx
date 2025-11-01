@@ -20,8 +20,8 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ conversationId, onConversationLoaded }: ChatPanelProps) {
-  const { user: currentUser, isClient } = useUser();
-  const { socket, isConnected } = useSocket();
+  const { user: currentUser } = useUser();
+  const { socket } = useSocket();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState<string>('');
