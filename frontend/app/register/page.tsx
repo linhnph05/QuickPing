@@ -1,9 +1,16 @@
 'use client';
 
-import { useState, FormEvent, ChangeEvent } from 'react';
+import { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { MessageCircle, Mail, User as UserIcon, Lock, IdCard, Loader2, AlertCircle } from 'lucide-react';
 import api from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface FormData {
   email: string;
@@ -22,11 +29,11 @@ export default function RegisterPage() {
     confirmPassword: '',
     mssv: ''
   });
-  const [error, setError] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (name: string, value: string) => {
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -69,108 +76,182 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800 dark:text-white">
-          QuickPing
-        </h1>
-        <h2 className="text-xl font-semibold text-center mb-6 text-gray-700 dark:text-gray-300">
-          Đăng Ký
-        </h2>
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+      <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 md:p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-[480px] lg:max-w-[520px]"
+        >
+          <Card className="shadow-2xl">
+            <CardHeader className="space-y-4 text-center px-6 sm:px-8 pt-8 pb-6">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                className="flex justify-center"
+              >
+                <div className="bg-primary/10 p-4 rounded-full">
+                  <MessageCircle className="h-12 w-12 text-primary" />
+                </div>
+              </motion.div>
+              <div className="space-y-2">
+                <CardTitle className="text-3xl font-bold">QuickPing</CardTitle>
+                <CardDescription className="text-base">
+                  Tạo tài khoản để bắt đầu
+                </CardDescription>
+              </div>
+            </CardHeader>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
+            <CardContent className="space-y-6 px-6 sm:px-8 pb-8">
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+              >
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              </motion.div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="your.email@example.com"
-            />
-          </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-base font-medium">
+                  Email
+                </Label>
+                <div className="relative w-full">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none z-10" />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    required
+                    placeholder="your.email@example.com"
+                    className="w-full pl-11 pr-4 h-12 text-base"
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Tên người dùng
-            </label>
-            <input
-              type="text"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              required
-              minLength={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-base font-medium">
+                  Tên người dùng
+                </Label>
+                <div className="relative w-full">
+                  <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none z-10" />
+                  <Input
+                    id="username"
+                    type="text"
+                    value={formData.username}
+                    onChange={(e) => handleChange('username', e.target.value)}
+                    required
+                    minLength={3}
+                    placeholder="Tên hiển thị"
+                    className="w-full pl-11 pr-4 h-12 text-base"
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              MSSV (tùy chọn)
-            </label>
-            <input
-              type="text"
-              name="mssv"
-              value={formData.mssv}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="mssv" className="text-base font-medium">
+                  MSSV <span className="text-muted-foreground text-sm">(tùy chọn)</span>
+                </Label>
+                <div className="relative w-full">
+                  <IdCard className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none z-10" />
+                  <Input
+                    id="mssv"
+                    type="text"
+                    value={formData.mssv}
+                    onChange={(e) => handleChange('mssv', e.target.value)}
+                    placeholder="Mã số sinh viên"
+                    className="w-full pl-11 pr-4 h-12 text-base"
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Mật khẩu
-            </label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              minLength={6}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-base font-medium">
+                  Mật khẩu
+                </Label>
+                <div className="relative w-full">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none z-10" />
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => handleChange('password', e.target.value)}
+                    required
+                    minLength={6}
+                    placeholder="••••••••"
+                    className="w-full pl-11 pr-4 h-12 text-base"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tối thiểu 6 ký tự
+                </p>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Xác nhận mật khẩu
-            </label>
-            <input
-              type="password"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-base font-medium">
+                  Xác nhận mật khẩu
+                </Label>
+                <div className="relative w-full">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none z-10" />
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => handleChange('confirmPassword', e.target.value)}
+                    required
+                    placeholder="••••••••"
+                    className="w-full pl-11 pr-4 h-12 text-base"
+                  />
+                </div>
+              </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Đang đăng ký...' : 'Đăng Ký'}
-          </button>
-        </form>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 text-base font-semibold mt-6"
+                size="lg"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Đang đăng ký...
+                  </>
+                ) : (
+                  'Đăng Ký'
+                )}
+              </Button>
+            </form>
 
-        <div className="mt-4 text-center">
-          <Link href="/login" className="text-blue-600 hover:text-blue-800 dark:text-blue-400">
-            Đã có tài khoản? Đăng nhập
-          </Link>
-        </div>
+            <div className="text-center text-base pt-4">
+              <span className="text-muted-foreground">Đã có tài khoản? </span>
+              <Link 
+                href="/login" 
+                className="text-primary font-semibold hover:underline transition-colors"
+              >
+                Đăng nhập
+              </Link>
+            </div>
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-sm text-muted-foreground mt-8 px-4">
+            Bằng việc đăng ký, bạn đồng ý với{' '}
+            <a href="#" className="underline hover:text-primary font-medium transition-colors">
+              Điều khoản dịch vụ
+            </a>
+            {' '}và{' '}
+            <a href="#" className="underline hover:text-primary font-medium transition-colors">
+              Chính sách bảo mật
+            </a>
+          </p>
+        </motion.div>
       </div>
     </div>
   );

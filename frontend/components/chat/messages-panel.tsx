@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import api from '@/lib/api';
+import { apiClient } from '@/lib/api-client';
 import { Conversation } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import vi from 'date-fns/locale/vi';
@@ -89,7 +89,7 @@ export function MessagesPanel({ selectedId, onSelect }: MessagesPanelProps) {
     try {
       setLoading(true);
       console.log('📡 Fetching conversations with token:', token.substring(0, 20) + '...');
-      const response = await api.get<{ conversations: Conversation[] }>('/conversations');
+      const response = await apiClient.conversations.getAll();
       setConversations(response.data.conversations || []);
     } catch (error: any) {
       console.error('Error fetching conversations:', error);

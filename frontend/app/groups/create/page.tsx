@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, ArrowRight, ArrowLeft, Check } from 'lucide-react';
+import { Users, ArrowRight, ArrowLeft, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,18 +11,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useRouter } from 'next/navigation';
+import { mockAPI } from '@/lib/mock-api';
+import { User } from '@/types';
 
 const steps = [
   { id: 1, title: 'Thông tin nhóm', description: 'Tên và mô tả' },
   { id: 2, title: 'Thêm thành viên', description: 'Mời người vào nhóm' },
   { id: 3, title: 'Hoàn tất', description: 'Xem lại và tạo' },
-];
-
-// Mock users
-const mockUsers = [
-  { _id: '1', username: 'nguyenvana', email: 'nguyenvana@example.com', avatar_url: '' },
-  { _id: '2', username: 'tranthib', email: 'tranthib@example.com', avatar_url: '' },
-  { _id: '3', username: 'phamvanc', email: 'phamvanc@example.com', avatar_url: '' },
 ];
 
 export default function CreateGroupPage() {
@@ -33,6 +28,28 @@ export default function CreateGroupPage() {
     description: '',
     members: [] as string[],
   });
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    loadFriends();
+  }, []);
+
+  const loadFriends = async () => {
+    try {
+      const response = await mockAPI.friends.getAll();
+      const allFriendships = response.data.friends || [];
+      const acceptedFriends = allFriendships
+        .filter((f: any) => f.status === 'accepted')
+        .map((f: any) => f.friend_id || f.user_id);
+      setAvailableUsers(acceptedFriends);
+    } catch (error) {
+      console.error('Error loading friends:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleNext = () => {
     if (currentStep < 3) setCurrentStep(currentStep + 1);
@@ -42,10 +59,21 @@ export default function CreateGroupPage() {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
-  const handleCreateGroup = () => {
-    // TODO: API call
-    console.log('Creating group:', groupData);
-    router.push('/groups');
+  const handleCreateGroup = async () => {
+    setCreating(true);
+    try {
+      await mockAPI.conversations.createGroup({
+        name: groupData.name,
+        description: groupData.description,
+        participant_ids: groupData.members,
+      });
+      router.push('/groups');
+    } catch (error) {
+      console.error('Error creating group:', error);
+      alert('Không thể tạo nhóm. Vui lòng thử lại.');
+    } finally {
+      setCreating(false);
+    }
   };
 
   const toggleMember = (userId: string) => {
@@ -161,12 +189,22 @@ export default function CreateGroupPage() {
                   <div className="text-center mb-8">
                     <h2 className="text-2xl font-bold">Thêm thành viên</h2>
                     <p className="text-muted-foreground">
-                      Chọn người bạn muốn mời vào nhóm
+                      Chọn bạn bè để mời vào nhóm
                     </p>
                   </div>
 
-                  <div className="space-y-3">
-                    {mockUsers.map((user) => (
+                  {loading ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                    </div>
+                  ) : availableUsers.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>Bạn chưa có bạn bè nào để thêm vào nhóm</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {availableUsers.map((user) => (
                       <div
                         key={user._id}
                         className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
@@ -189,8 +227,9 @@ export default function CreateGroupPage() {
                           </p>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
 
                   <p className="text-sm text-muted-foreground text-center">
                     Đã chọn {groupData.members.length} thành viên
@@ -227,30 +266,32 @@ export default function CreateGroupPage() {
                       </div>
                     )}
 
-                    <div className="p-4 bg-muted/30 rounded-lg">
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Thành viên ({groupData.members.length})
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {groupData.members.map((memberId) => {
-                          const user = mockUsers.find((u) => u._id === memberId);
-                          return (
-                            <div
-                              key={memberId}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-background rounded-full border"
-                            >
-                              <Avatar className="h-5 w-5">
-                                <AvatarImage src={user?.avatar_url} />
-                                <AvatarFallback className="text-xs">
-                                  {user?.username?.[0]?.toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="text-sm">{user?.username}</span>
-                            </div>
-                          );
-                        })}
+                    {groupData.members.length > 0 && (
+                      <div className="p-4 bg-muted/30 rounded-lg">
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Thành viên ({groupData.members.length})
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {groupData.members.map((memberId) => {
+                            const user = availableUsers.find((u) => u._id === memberId);
+                            return (
+                              <div
+                                key={memberId}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-background rounded-full border"
+                              >
+                                <Avatar className="h-5 w-5">
+                                  <AvatarImage src={user?.avatar_url} />
+                                  <AvatarFallback className="text-xs">
+                                    {user?.username?.[0]?.toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm">{user?.username}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -275,9 +316,18 @@ export default function CreateGroupPage() {
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 ) : (
-                  <Button onClick={handleCreateGroup}>
-                    <Check className="h-4 w-4 mr-2" />
-                    Tạo nhóm
+                  <Button onClick={handleCreateGroup} disabled={creating}>
+                    {creating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Đang tạo...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Tạo nhóm
+                      </>
+                    )}
                   </Button>
                 )}
               </div>

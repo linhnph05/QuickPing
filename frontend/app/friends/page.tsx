@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, UserPlus, UserMinus, Check, X, Search, UserX } from 'lucide-react';
+import { Users, UserPlus, UserMinus, Check, X, Search, UserX, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,53 +10,111 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
+import { mockAPI } from '@/lib/mock-api';
+import { User } from '@/types';
 
-// Mock data
-const mockFriends = [
-  { _id: '1', username: 'nguyenvana', email: 'nguyenvana@example.com', avatar_url: '', is_online: true },
-  { _id: '2', username: 'tranthib', email: 'tranthib@example.com', avatar_url: '', is_online: false },
-];
-
-const mockRequests = [
-  { _id: '1', username: 'phamvanc', email: 'phamvanc@example.com', avatar_url: '', sent_at: new Date() },
-];
-
-const mockBlocked = [
-  { _id: '1', username: 'blockeduser', email: 'blocked@example.com', avatar_url: '' },
-];
+interface FriendRequest {
+  _id: string;
+  user_id: User;
+  friend_id: User;
+  status: string;
+  sent_at: Date;
+}
 
 export default function FriendsPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [friends, setFriends] = useState(mockFriends);
-  const [requests, setRequests] = useState(mockRequests);
-  const [blocked, setBlocked] = useState(mockBlocked);
+  const [friends, setFriends] = useState<User[]>([]);
+  const [requests, setRequests] = useState<FriendRequest[]>([]);
+  const [blocked, setBlocked] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const handleAcceptRequest = (userId: string) => {
-    // TODO: API call
-    console.log('Accept request:', userId);
-    setRequests(requests.filter((r) => r._id !== userId));
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const friendsRes = await mockAPI.friends.getAll();
+      
+      // Filter accepted friends and pending requests
+      const allFriendships = friendsRes.data.friends || [];
+      const acceptedFriends = allFriendships
+        .filter((f: any) => f.status === 'accepted')
+        .map((f: any) => f.friend_id || f.user_id);
+      
+      const pendingRequests = allFriendships.filter((f: any) => f.status === 'pending');
+      
+      setFriends(acceptedFriends);
+      setRequests(pendingRequests);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRejectRequest = (userId: string) => {
-    // TODO: API call
-    console.log('Reject request:', userId);
-    setRequests(requests.filter((r) => r._id !== userId));
+  const handleAcceptRequest = async (friendshipId: string) => {
+    setActionLoading(friendshipId);
+    try {
+      await mockAPI.friends.acceptRequest(friendshipId);
+      await loadData(); // Reload
+    } catch (error) {
+      console.error('Error accepting request:', error);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleRemoveFriend = (userId: string) => {
-    // TODO: API call
-    setFriends(friends.filter((f) => f._id !== userId));
+  const handleRejectRequest = async (friendshipId: string) => {
+    setActionLoading(friendshipId);
+    try {
+      await mockAPI.friends.rejectRequest(friendshipId);
+      setRequests(requests.filter((r) => r._id !== friendshipId));
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleUnblock = (userId: string) => {
-    // TODO: API call
-    setBlocked(blocked.filter((b) => b._id !== userId));
+  const handleRemoveFriend = async (userId: string) => {
+    if (!confirm('Bạn có chắc muốn xóa bạn bè này?')) return;
+    
+    setActionLoading(userId);
+    try {
+      setFriends(friends.filter((f) => f._id !== userId));
+    } catch (error) {
+      console.error('Error removing friend:', error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUnblock = async (userId: string) => {
+    setActionLoading(userId);
+    try {
+      setBlocked(blocked.filter((b) => b._id !== userId));
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const filteredFriends = friends.filter((friend) =>
     friend.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -120,9 +178,23 @@ export default function FriendsPage() {
               />
             </div>
 
-            <ScrollArea className="h-[600px]">
-              <div className="grid gap-4 md:grid-cols-2">
-                {filteredFriends.map((friend) => (
+            {filteredFriends.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="mb-2">
+                  {friends.length === 0 ? 'Chưa có bạn bè nào' : 'Không tìm thấy kết quả'}
+                </p>
+                {friends.length === 0 && (
+                  <Button variant="outline" onClick={() => router.push('/search')}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Tìm bạn bè
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <ScrollArea className="h-[600px]">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {filteredFriends.map((friend) => (
                   <motion.div
                     key={friend._id}
                     initial={{ opacity: 0, y: 20 }}
@@ -171,9 +243,10 @@ export default function FriendsPage() {
                       </Button>
                     </div>
                   </motion.div>
-                ))}
-              </div>
-            </ScrollArea>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
           </TabsContent>
 
           {/* Pending Requests */}
@@ -182,46 +255,59 @@ export default function FriendsPage() {
               {requests.length} lời mời kết bạn đang chờ
             </p>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              {requests.map((request) => (
-                <motion.div
-                  key={request._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-4 p-4 border rounded-lg"
-                >
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={request.avatar_url} />
-                    <AvatarFallback>
-                      {request.username?.[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold truncate">{request.username}</p>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {request.email}
-                    </p>
-                  </div>
+            {requests.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <UserPlus className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Không có lời mời kết bạn nào</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {requests.map((request) => (
+                  <motion.div
+                    key={request._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-4 p-4 border rounded-lg"
+                  >
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={request.user_id.avatar_url} />
+                      <AvatarFallback>
+                        {request.user_id.username?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{request.user_id.username}</p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {request.user_id.email}
+                      </p>
+                    </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleAcceptRequest(request._id)}
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleRejectRequest(request._id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleAcceptRequest(request._id)}
+                        disabled={actionLoading === request._id}
+                      >
+                        {actionLoading === request._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRejectRequest(request._id)}
+                        disabled={actionLoading === request._id}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           {/* Blocked Users */}
@@ -230,8 +316,14 @@ export default function FriendsPage() {
               {blocked.length} người dùng bị chặn
             </p>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              {blocked.map((user) => (
+            {blocked.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <UserX className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Không có người dùng nào bị chặn</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {blocked.map((user) => (
                 <motion.div
                   key={user._id}
                   initial={{ opacity: 0, y: 20 }}
@@ -256,13 +348,19 @@ export default function FriendsPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => handleUnblock(user._id)}
+                    disabled={actionLoading === user._id}
                   >
-                    <UserX className="h-4 w-4 mr-2" />
+                    {actionLoading === user._id ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <UserX className="h-4 w-4 mr-2" />
+                    )}
                     Bỏ chặn
                   </Button>
                 </motion.div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
