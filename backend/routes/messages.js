@@ -101,10 +101,29 @@ router.post('/', authenticate, [
 
     // Emit socket event for realtime update
     if (io) {
-      io.to(`conversation_${conversation_id}`).emit('message_received', {
-        message: message.toObject(),
-        conversation_id
+      const messageObject = message.toObject();
+      const conversationIdStr = conversation_id.toString();
+      const room = `conversation_${conversationIdStr}`;
+      
+      console.log(`📤 Emitting message to room: ${room}`, {
+        messageId: messageObject._id,
+        conversationId: conversationIdStr,
+        senderId: req.user._id.toString()
       });
+      
+      // Get room size for debugging
+      const roomSockets = await io.in(room).fetchSockets();
+      console.log(`👥 Room ${room} has ${roomSockets.length} socket(s)`);
+      
+      // Emit to all users in the conversation room
+      io.to(room).emit('message_received', {
+        message: messageObject,
+        conversation_id: conversationIdStr
+      });
+      
+      console.log(`✅ Message emitted to room: ${room}`);
+    } else {
+      console.warn('⚠️ Socket.io not available, message saved but not broadcasted');
     }
 
     res.status(201).json({ message });

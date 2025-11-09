@@ -9,13 +9,13 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Moon, Sun, Type, Bell, Lock, User as UserIcon } from 'lucide-react';
+import { Moon, Sun, Type, Bell, Lock, User as UserIcon, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useUser } from '@/hooks/useUser';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, loading: userLoading } = useUser();
+  const { user } = useUser();
   
   // Theme state
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -83,25 +83,28 @@ export default function SettingsPage() {
     }
   };
 
-  if (userLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col">
       <ScrollArea className="flex-1">
         <div className="container max-w-4xl mx-auto py-8 px-4">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold">Settings</h1>
-            <p className="text-gray-600 mt-2">Quản lý tài khoản và tùy chỉnh trải nghiệm của bạn</p>
+          {/* Header with Close Button */}
+          <div className="mb-8 flex items-start justify-between">
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold">Settings</h1>
+              <p className="text-gray-600 mt-2">Quản lý tài khoản và tùy chỉnh trải nghiệm của bạn</p>
+            </div>
+            
+            {/* Close Button - ESC Style */}
+            <button
+              onClick={() => router.push('/')}
+              className="flex flex-col items-center gap-2 group flex-shrink-0"
+              aria-label="Close settings"
+            >
+              <div className="w-12 h-12 rounded-full bg-[#2B2D31] border-2 border-gray-600 flex items-center justify-center hover:border-gray-400 transition-colors">
+                <X className="w-5 h-5 text-gray-400 group-hover:text-gray-200 transition-colors" />
+              </div>
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">ESC</span>
+            </button>
           </div>
 
           <Tabs defaultValue="appearance" className="w-full">

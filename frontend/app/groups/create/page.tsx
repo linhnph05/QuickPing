@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useRouter } from 'next/navigation';
-import { mockAPI } from '@/lib/mock-api';
+import { apiClient } from '@/lib/api-client';
 import { User } from '@/types';
 
 const steps = [
@@ -38,7 +38,7 @@ export default function CreateGroupPage() {
 
   const loadFriends = async () => {
     try {
-      const response = await mockAPI.friends.getAll();
+      const response = await apiClient.friends.getAll();
       const allFriendships = response.data.friends || [];
       const acceptedFriends = allFriendships
         .filter((f: any) => f.status === 'accepted')
@@ -62,7 +62,7 @@ export default function CreateGroupPage() {
   const handleCreateGroup = async () => {
     setCreating(true);
     try {
-      await mockAPI.conversations.createGroup({
+      await apiClient.conversations.createGroup({
         name: groupData.name,
         description: groupData.description,
         participant_ids: groupData.members,

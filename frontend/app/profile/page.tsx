@@ -12,14 +12,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
-import { mockAPI } from '@/lib/mock-api';
+import { apiClient } from '@/lib/api-client';
 import { Badge } from '@/components/ui/badge';
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user } = useUser();
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   // Profile state
   const [profile, setProfile] = useState({
@@ -45,7 +44,7 @@ export default function ProfilePage() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      await mockAPI.users.updateProfile({
+      await apiClient.users.updateProfile({
         username: profile.username,
         bio: profile.bio,
         avatar_url: profile.avatar_url,
@@ -65,14 +64,6 @@ export default function ProfilePage() {
       setSaving(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">

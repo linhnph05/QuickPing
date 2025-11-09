@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
-import { mockAPI } from '@/lib/mock-api';
+import { apiClient } from '@/lib/api-client';
 import { User } from '@/types';
 
 interface FriendRequest {
@@ -37,7 +37,7 @@ export default function FriendsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const friendsRes = await mockAPI.friends.getAll();
+      const friendsRes = await apiClient.friends.getAll();
       
       // Filter accepted friends and pending requests
       const allFriendships = friendsRes.data.friends || [];
@@ -59,7 +59,7 @@ export default function FriendsPage() {
   const handleAcceptRequest = async (friendshipId: string) => {
     setActionLoading(friendshipId);
     try {
-      await mockAPI.friends.acceptRequest(friendshipId);
+      await apiClient.friends.acceptRequest(friendshipId);
       await loadData(); // Reload
     } catch (error) {
       console.error('Error accepting request:', error);
@@ -71,7 +71,7 @@ export default function FriendsPage() {
   const handleRejectRequest = async (friendshipId: string) => {
     setActionLoading(friendshipId);
     try {
-      await mockAPI.friends.rejectRequest(friendshipId);
+      await apiClient.friends.rejectRequest(friendshipId);
       setRequests(requests.filter((r) => r._id !== friendshipId));
     } catch (error) {
       console.error('Error rejecting request:', error);

@@ -8,7 +8,7 @@
 import api from './api';
 import mockAPI from './mock-api';
 
-// Check if we should use mock
+// Check if we should use mock (default to REAL API)
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
 // Real API implementation (maps to backend endpoints)

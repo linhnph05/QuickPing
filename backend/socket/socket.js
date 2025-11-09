@@ -14,6 +14,14 @@ export const setupSocketIO = (io) => {
         is_online: true,
         last_seen: new Date()
       });
+      console.log(`✅ User ${userId} marked as online`);
+      
+      // Notify all users about online status
+      io.emit('user_status_changed', {
+        user_id: userId,
+        is_online: true,
+        last_seen: new Date()
+      });
     } catch (err) {
       console.error('Update online status error:', err);
     }
@@ -33,7 +41,12 @@ export const setupSocketIO = (io) => {
 
     // Handle join conversation
     socket.on('join_conversation', async (conversationId) => {
-      socket.join(`conversation_${conversationId}`);
+      const room = `conversation_${conversationId}`;
+      socket.join(room);
+      console.log(`✅ User ${userId} joined conversation room: ${room}`);
+      
+      // Confirm join to client
+      socket.emit('joined_conversation', { conversation_id: conversationId });
     });
 
     // Handle leave conversation
@@ -85,22 +98,26 @@ export const setupSocketIO = (io) => {
     socket.on('disconnect', async () => {
       userSockets.delete(userId);
       
+      console.log(`🔌 User ${userId} disconnected`);
+      
       // Update user offline status
       try {
         await User.findByIdAndUpdate(userId, {
           is_online: false,
           last_seen: new Date()
         });
+        console.log(`✅ User ${userId} marked as offline`);
       } catch (err) {
         console.error('Update offline status error:', err);
       }
 
-      // Notify others
+      // Notify all connected users
       io.emit('user_status_changed', {
         user_id: userId,
         is_online: false,
         last_seen: new Date()
       });
+      console.log(`📤 Broadcasted offline status for user ${userId}`);
     });
   });
 

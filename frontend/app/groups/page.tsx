@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
-import { mockAPI } from '@/lib/mock-api';
+import { apiClient } from '@/lib/api-client';
 import { Conversation } from '@/types';
 
 export default function GroupsPage() {
@@ -26,7 +26,7 @@ export default function GroupsPage() {
   const loadGroups = async () => {
     try {
       setLoading(true);
-      const response = await mockAPI.conversations.getAll();
+      const response = await apiClient.conversations.getAll();
       const groupConversations = response.data.conversations.filter(
         (conv: Conversation) => conv.type === 'group'
       );

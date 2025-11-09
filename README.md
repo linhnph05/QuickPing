@@ -61,12 +61,73 @@ quickping/
 
 ## Quick Start
 
-### Prerequisites
+### 🐳 Docker Quick Start (Recommended)
+
+The easiest way to run the entire application is using Docker Compose:
+
+#### Prerequisites
+- Docker & Docker Compose installed
+- MongoDB Atlas connection string (or use local MongoDB)
+
+#### Setup
+
+1. **Create `.env` file in root directory:**
+```bash
+# MongoDB Atlas Connection
+MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/quickping?retryWrites=true&w=majority
+
+# JWT Secret
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+```
+
+2. **Start all services:**
+```bash
+docker-compose up -d
+```
+
+3. **Access the application:**
+- **Frontend**: http://localhost:3000
+- **Backend**: http://localhost:5001
+- **MongoDB**: localhost:27017 (if using local MongoDB)
+
+#### Useful Commands
+
+```bash
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+
+# Rebuild (when code changes)
+docker-compose up -d --build
+
+# View status
+docker-compose ps
+
+# Restart a service
+docker-compose restart backend
+
+# View logs of a specific service
+docker-compose logs -f backend
+
+# Enter container
+docker exec -it quickping-backend sh
+docker exec -it quickping-frontend sh
+docker exec -it quickping-mongodb mongosh
+
+# Stop and remove all (including data)
+docker-compose down -v
+```
+
+### 📦 Manual Setup
+
+#### Prerequisites
 - Node.js 18+ 
 - MongoDB Atlas account (or local MongoDB)
 - npm or yarn
 
-### Backend Setup
+#### Backend Setup
 
 ```bash
 cd backend
@@ -90,7 +151,7 @@ npm run dev
 
 Backend will run on **http://localhost:5001**
 
-### Frontend Setup
+#### Frontend Setup
 
 ```bash
 cd frontend

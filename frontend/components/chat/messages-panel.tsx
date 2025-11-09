@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import api from '@/lib/api';
 import { apiClient } from '@/lib/api-client';
 import { Conversation } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
@@ -69,11 +70,48 @@ export function MessagesPanel({ selectedId, onSelect }: MessagesPanelProps) {
       });
     };
 
+    // Listen for user status changes
+    const handleUserStatusChanged = (data: { user_id: string; is_online: boolean; last_seen: Date }) => {
+      console.log('📡 User status changed in conversation list:', data);
+      
+      setConversations((prev) => {
+        return prev.map((conv) => {
+          // Update participant status if they're in this conversation
+          const hasParticipant = conv.participants?.some(
+            p => p.user_id?._id?.toString() === data.user_id
+          );
+          
+          if (hasParticipant) {
+            return {
+              ...conv,
+              participants: conv.participants?.map(p => {
+                if (p.user_id?._id?.toString() === data.user_id) {
+                  return {
+                    ...p,
+                    user_id: {
+                      ...p.user_id,
+                      is_online: data.is_online,
+                      last_seen: data.last_seen
+                    }
+                  };
+                }
+                return p;
+              })
+            };
+          }
+          
+          return conv;
+        });
+      });
+    };
+
     socket.on('message_received', handleMessageReceived);
+    socket.on('user_status_changed', handleUserStatusChanged);
 
     return () => {
       console.log('🔌 Cleaning up conversation list socket listeners');
       socket.off('message_received', handleMessageReceived);
+      socket.off('user_status_changed', handleUserStatusChanged);
     };
   }, [socket]);
 
@@ -122,17 +160,29 @@ export function MessagesPanel({ selectedId, onSelect }: MessagesPanelProps) {
 
   const handleSelectUser = async (userId: string) => {
     try {
+      console.log('👤 Creating/getting direct conversation with user:', userId);
+      
       // Create or get direct conversation with selected user
-      const response = await api.post<{ conversation: Conversation }>('/conversations/direct', { userId });
+      const response = await apiClient.conversations.createDirect(userId);
       const conversation = response.data.conversation;
       
-      // Refresh conversations list
+      console.log('✅ Conversation created/retrieved:', conversation._id);
+      
+      // Refresh conversations list to show the new conversation
       await fetchConversations();
       
       // Select the new/existing conversation
       onSelect(conversation._id);
-    } catch (error) {
-      console.error('Error creating direct conversation:', error);
+      
+      console.log('✅ Conversation selected:', conversation._id);
+    } catch (error: any) {
+      console.error('❌ Error creating direct conversation:', error);
+      
+      // Better error messaging
+      const errorMessage = error?.response?.data?.error || 
+                          error?.message || 
+                          'Failed to create conversation';
+      alert(`❌ ${errorMessage}`);
     }
   };
 
