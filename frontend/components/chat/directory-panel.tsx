@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, FileText, Image, FileSpreadsheet, File, MoreHorizontal } from 'lucide-react';
+import { Download, FileText, Image, FileSpreadsheet, File, MoreHorizontal, UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import api from '@/lib/api';
 import { User, FileAttachment, Conversation } from '@/types';
 import { cn } from '@/lib/utils';
+import { AddMembersModal } from '@/components/modals/add-members-modal';
 
 interface DirectoryPanelProps {
   conversation?: Conversation | null;
@@ -19,16 +20,37 @@ export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('member');
 
   useEffect(() => {
     if (conversation) {
       fetchTeamMembers();
       fetchFiles();
+      checkUserRole();
     } else {
       setTeamMembers([]);
       setFiles([]);
+      setCurrentUserRole('member');
     }
   }, [conversation]);
+
+  const checkUserRole = () => {
+    if (!conversation || conversation.type !== 'group') {
+      setCurrentUserRole('member');
+      return;
+    }
+
+    const currentUserId = typeof window !== 'undefined' && localStorage.getItem('user')
+      ? JSON.parse(localStorage.getItem('user')!)._id
+      : null;
+
+    const participant = conversation.participants?.find(
+      (p) => p.user_id?._id === currentUserId
+    );
+
+    setCurrentUserRole(participant?.role || 'member');
+  };
 
   const fetchTeamMembers = async () => {
     if (!conversation) return;
@@ -113,6 +135,22 @@ export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
     return filename.split('.').pop()?.toUpperCase() || 'FILE';
   };
 
+  const handleMembersAdded = async () => {
+    // Reload conversation data
+    if (conversation) {
+      try {
+        const response = await api.get(`/conversations/${conversation._id}`);
+        // Update team members with new data
+        fetchTeamMembers();
+      } catch (error) {
+        console.error('Error reloading conversation:', error);
+      }
+    }
+  };
+
+  const canAddMembers = conversation?.type === 'group' && 
+    (currentUserRole === 'admin' || currentUserRole === 'moderator');
+
   return (
     <div className="border-l border-gray-200 flex flex-col bg-white shadow-[1px_0px_0px_0px_rgba(0,0,0,0.08)] h-full">
       {/* Header */}
@@ -129,11 +167,22 @@ export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
       <div className="flex-1 overflow-y-auto">
         {/* Team Members */}
         <div className="flex flex-col gap-2 px-4 pt-6">
-          <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-[14px] font-semibold leading-[21px]">Team Members</h3>
-            <div className="px-2 py-0.5 bg-[#EDF2F7] rounded-[24px]">
-              <span className="text-[12px] font-semibold">{teamMembers.length}</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <h3 className="text-[14px] font-semibold leading-[21px]">Team Members</h3>
+              <div className="px-2 py-0.5 bg-[#EDF2F7] rounded-[24px]">
+                <span className="text-[12px] font-semibold">{teamMembers.length}</span>
+              </div>
             </div>
+            {canAddMembers && (
+              <button
+                onClick={() => setAddMembersOpen(true)}
+                className="w-8 h-8 flex items-center justify-center bg-[#615EF0]/10 hover:bg-[#615EF0]/20 rounded-full transition-colors"
+                title="Thêm thành viên"
+              >
+                <UserPlus className="w-4 h-4 text-[#615EF0]" />
+              </button>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -248,6 +297,17 @@ export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
           </div>
         </div>
       </div>
+
+      {/* Add Members Modal */}
+      {conversation && conversation.type === 'group' && (
+        <AddMembersModal
+          open={addMembersOpen}
+          onOpenChange={setAddMembersOpen}
+          conversationId={conversation._id}
+          currentMembers={teamMembers.map((m) => m._id)}
+          onMembersAdded={handleMembersAdded}
+        />
+      )}
     </div>
   );
 }

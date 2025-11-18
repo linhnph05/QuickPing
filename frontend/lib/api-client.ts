@@ -57,6 +57,10 @@ const realAPI = {
         participants: data.participant_ids,
       });
     },
+    
+    update: async (id: string, data: { name?: string; description?: string; participants?: any[] }) => {
+      return await api.put(`/conversations/${id}`, data);
+    },
   },
   
   // ==========================================================================
@@ -107,6 +111,10 @@ const realAPI = {
   friends: {
     getAll: async () => {
       return await api.get('/friends');
+    },
+    
+    getRequests: async () => {
+      return await api.get('/friends/requests');
     },
     
     sendRequest: async (friendId: string) => {

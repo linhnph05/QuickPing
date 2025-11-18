@@ -37,18 +37,14 @@ export default function FriendsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
+      
+      // Get accepted friends
       const friendsRes = await apiClient.friends.getAll();
+      setFriends(friendsRes.data.friends || []);
       
-      // Filter accepted friends and pending requests
-      const allFriendships = friendsRes.data.friends || [];
-      const acceptedFriends = allFriendships
-        .filter((f: any) => f.status === 'accepted')
-        .map((f: any) => f.friend_id || f.user_id);
-      
-      const pendingRequests = allFriendships.filter((f: any) => f.status === 'pending');
-      
-      setFriends(acceptedFriends);
-      setRequests(pendingRequests);
+      // Get pending incoming requests (people who sent requests to you)
+      const requestsRes = await apiClient.friends.getRequests();
+      setRequests(requestsRes.data.requests || []);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {

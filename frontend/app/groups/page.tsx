@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Plus, Settings, MessageCircle, Crown, Search, Loader2 } from 'lucide-react';
+import { Users, Plus, Settings, MessageCircle, Crown, Search, Loader2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,12 +12,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Conversation } from '@/types';
+import { AddMembersModal } from '@/components/modals/add-members-modal';
 
 export default function GroupsPage() {
   const router = useRouter();
   const [groups, setGroups] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState<Conversation | null>(null);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
 
   useEffect(() => {
     loadGroups();
@@ -51,6 +54,16 @@ export default function GroupsPage() {
       (p) => p.user_id._id === currentUserId
     );
     return participant?.role || 'member';
+  };
+
+  const handleAddMembers = (group: Conversation) => {
+    setSelectedGroup(group);
+    setAddMembersOpen(true);
+  };
+
+  const handleMembersAdded = () => {
+    // Reload groups after adding members
+    loadGroups();
   };
 
   if (loading) {
@@ -237,17 +250,31 @@ export default function GroupsPage() {
                             <MessageCircle className="h-4 w-4 mr-2" />
                             Nhắn tin
                           </Button>
-                          {role === 'admin' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // TODO: Implement group settings
-                              }}
-                            >
-                              <Settings className="h-4 w-4" />
-                            </Button>
+                          {(role === 'admin' || role === 'moderator') && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddMembers(group);
+                                }}
+                                title="Thêm thành viên"
+                              >
+                                <UserPlus className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // TODO: Implement group settings
+                                }}
+                                title="Cài đặt nhóm"
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            </>
                           )}
                         </div>
                       </CardContent>
@@ -259,6 +286,17 @@ export default function GroupsPage() {
           </ScrollArea>
         )}
       </div>
+
+      {/* Add Members Modal */}
+      {selectedGroup && (
+        <AddMembersModal
+          open={addMembersOpen}
+          onOpenChange={setAddMembersOpen}
+          conversationId={selectedGroup._id}
+          currentMembers={selectedGroup.participants.map((p) => p.user_id._id)}
+          onMembersAdded={handleMembersAdded}
+        />
+      )}
     </div>
   );
 }

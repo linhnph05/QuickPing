@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { User } from '@/types';
@@ -86,7 +87,7 @@ export default function CreateGroupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen overflow-auto bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto">
           {/* Progress Steps */}
@@ -203,32 +204,34 @@ export default function CreateGroupPage() {
                       <p>Bạn chưa có bạn bè nào để thêm vào nhóm</p>
                     </div>
                   ) : (
-                  <div className="space-y-3">
-                      {availableUsers.map((user) => (
-                      <div
-                        key={user._id}
-                        className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                        onClick={() => toggleMember(user._id)}
-                      >
-                        <Checkbox
-                          checked={groupData.members.includes(user._id)}
-                          onCheckedChange={() => toggleMember(user._id)}
-                        />
-                        <Avatar>
-                          <AvatarImage src={user.avatar_url} />
-                          <AvatarFallback>
-                            {user.username?.[0]?.toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="font-semibold">{user.username}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {user.email}
-                          </p>
-                        </div>
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-3">
+                        {availableUsers.map((user) => (
+                          <div
+                            key={user._id}
+                            className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
+                            onClick={() => toggleMember(user._id)}
+                          >
+                            <Checkbox
+                              checked={groupData.members.includes(user._id)}
+                              onCheckedChange={() => toggleMember(user._id)}
+                            />
+                            <Avatar>
+                              <AvatarImage src={user.avatar_url} />
+                              <AvatarFallback>
+                                {user.username?.[0]?.toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <p className="font-semibold">{user.username}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {user.email}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </ScrollArea>
                   )}
 
                   <p className="text-sm text-muted-foreground text-center">

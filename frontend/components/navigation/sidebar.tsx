@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   MessageSquare, 
-  BarChart2, 
+  Users,
+  UserCheck,
   Search, 
   Calendar,
   Settings
@@ -15,9 +16,10 @@ import { useState, useEffect } from 'react';
 
 const navigation = [
   { name: 'Chat', href: '/', icon: MessageSquare },
-  { name: 'Analytics', href: '/analytics', icon: BarChart2 },
+  { name: 'Nhóm', href: '/groups', icon: Users },
+  { name: 'Bạn bè', href: '/friends', icon: UserCheck },
   { name: 'Tìm kiếm', href: '/search', icon: Search },
-  { name: 'Lịch', href: '/calendar', icon: Calendar },
+  { name: 'Hồ sơ', href: '/profile', icon: Calendar },
 ];
 
 export function Sidebar() {
