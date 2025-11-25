@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MessagesPanel } from '@/components/chat/messages-panel';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { DirectoryPanel } from '@/components/chat/directory-panel';
@@ -10,6 +10,7 @@ import { useUser } from '@/hooks/useUser';
 
 export default function ChatPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isClient } = useUser();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -26,6 +27,16 @@ export default function ChatPage() {
       router.push('/login');
     }
   }, [isClient, user, router]);
+
+  // Auto-select conversation from URL query parameter
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const conversationId = searchParams.get('conversation');
+    if (conversationId) {
+      setSelectedConversationId(conversationId);
+    }
+  }, [searchParams, isClient]);
 
   const handleSelectConversation = (conversationId: string) => {
     setSelectedConversationId(conversationId);

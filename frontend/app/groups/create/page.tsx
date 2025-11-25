@@ -40,11 +40,7 @@ export default function CreateGroupPage() {
   const loadFriends = async () => {
     try {
       const response = await apiClient.friends.getAll();
-      const allFriendships = response.data.friends || [];
-      const acceptedFriends = allFriendships
-        .filter((f: any) => f.status === 'accepted')
-        .map((f: any) => f.friend_id || f.user_id);
-      setAvailableUsers(acceptedFriends);
+      setAvailableUsers(response.data.friends || []);
     } catch (error) {
       console.error('Error loading friends:', error);
     } finally {
@@ -53,6 +49,11 @@ export default function CreateGroupPage() {
   };
 
   const handleNext = () => {
+    // Validate step 2: minimum 2 members
+    if (currentStep === 2 && groupData.members.length < 2) {
+      alert('Vui lòng chọn ít nhất 2 thành viên để tạo nhóm');
+      return;
+    }
     if (currentStep < 3) setCurrentStep(currentStep + 1);
   };
 
@@ -61,6 +62,11 @@ export default function CreateGroupPage() {
   };
 
   const handleCreateGroup = async () => {
+    if (groupData.members.length < 2) {
+      alert('Nhóm phải có ít nhất 2 thành viên');
+      return;
+    }
+    
     setCreating(true);
     try {
       await apiClient.conversations.createGroup({
@@ -68,7 +74,7 @@ export default function CreateGroupPage() {
         description: groupData.description,
         participant_ids: groupData.members,
       });
-    router.push('/groups');
+      router.push('/groups');
     } catch (error) {
       console.error('Error creating group:', error);
       alert('Không thể tạo nhóm. Vui lòng thử lại.');
@@ -234,9 +240,16 @@ export default function CreateGroupPage() {
                     </ScrollArea>
                   )}
 
-                  <p className="text-sm text-muted-foreground text-center">
-                    Đã chọn {groupData.members.length} thành viên
-                  </p>
+                  <div className="text-center space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Đã chọn {groupData.members.length} thành viên
+                    </p>
+                    {groupData.members.length < 2 && (
+                      <p className="text-sm text-orange-600">
+                        ⚠️ Cần chọn ít nhất 2 thành viên để tạo nhóm
+                      </p>
+                    )}
+                  </div>
                 </motion.div>
               )}
 

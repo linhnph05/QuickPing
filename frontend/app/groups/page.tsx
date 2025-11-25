@@ -245,7 +245,7 @@ export default function GroupsPage() {
                           <Button
                             className="flex-1"
                             size="sm"
-                            onClick={() => router.push(`/chat?conversation=${group._id}`)}
+                            onClick={() => router.push(`/?conversation=${group._id}`)}
                           >
                             <MessageCircle className="h-4 w-4 mr-2" />
                             Nhắn tin
