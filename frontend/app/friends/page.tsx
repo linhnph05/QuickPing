@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { User } from '@/types';
+import { useUserStatus } from '@/contexts/UserStatusContext';
 
 interface FriendRequest {
   _id: string;
@@ -23,6 +24,7 @@ interface FriendRequest {
 
 export default function FriendsPage() {
   const router = useRouter();
+  const { isUserOnline } = useUserStatus();
   const [searchQuery, setSearchQuery] = useState('');
   const [friends, setFriends] = useState<User[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -204,7 +206,7 @@ export default function FriendsPage() {
                           {friend.username?.[0]?.toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      {friend.is_online && (
+                      {isUserOnline(friend._id) && (
                         <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
                       )}
                     </div>
@@ -214,7 +216,7 @@ export default function FriendsPage() {
                       <p className="text-sm text-muted-foreground truncate">
                         {friend.email}
                       </p>
-                      {friend.is_online ? (
+                      {isUserOnline(friend._id) ? (
                         <p className="text-xs text-green-600 mt-1">● Online</p>
                       ) : (
                         <p className="text-xs text-muted-foreground mt-1">Offline</p>

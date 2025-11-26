@@ -257,7 +257,21 @@ npm start        # Production server
 
 ## Testing
 
-### Register User
+📖 **Xem hướng dẫn test API chi tiết tại:** [`API_TESTING_GUIDE.md`](./API_TESTING_GUIDE.md)
+
+### Quick Test Methods
+
+#### Method 1: Test Script (Recommended)
+```bash
+cd backend
+npm run test-api              # Test all endpoints
+npm run test-api auth         # Test only auth endpoints
+npm run test-api messages     # Test only messages endpoints
+```
+
+#### Method 2: Quick cURL Examples
+
+**Register User**
 ```bash
 curl -X POST http://localhost:5001/api/auth/register \
   -H "Content-Type: application/json" \
@@ -268,7 +282,7 @@ curl -X POST http://localhost:5001/api/auth/register \
   }'
 ```
 
-### Login
+**Login**
 ```bash
 curl -X POST http://localhost:5001/api/auth/login \
   -H "Content-Type: application/json" \
@@ -276,6 +290,14 @@ curl -X POST http://localhost:5001/api/auth/login \
     "email": "test@example.com",
     "password": "password123"
   }'
+```
+
+#### Method 3: Postman Collection
+Import file [`QuickPing_API.postman_collection.json`](./QuickPing_API.postman_collection.json) vào Postman để test tất cả endpoints.
+
+### Health Check
+```bash
+curl http://localhost:5001/health
 ```
 
 ## UI Screenshots

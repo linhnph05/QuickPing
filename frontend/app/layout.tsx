@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { SocketProvider } from '@/contexts/SocketContext';
 import { SidebarProvider } from '@/contexts/SidebarContext';
+import { UserStatusProvider } from '@/contexts/UserStatusContext';
 import LayoutContent from './layout-content';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -22,7 +23,9 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning>
         <SocketProvider>
           <SidebarProvider>
-            <LayoutContent>{children}</LayoutContent>
+            <UserStatusProvider>
+              <LayoutContent>{children}</LayoutContent>
+            </UserStatusProvider>
           </SidebarProvider>
         </SocketProvider>
       </body>

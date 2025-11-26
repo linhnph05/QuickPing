@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MessagesPanel } from '@/components/chat/messages-panel';
 import { ChatPanel } from '@/components/chat/chat-panel';
@@ -8,7 +8,7 @@ import { DirectoryPanel } from '@/components/chat/directory-panel';
 import { Conversation } from '@/types';
 import { useUser } from '@/hooks/useUser';
 
-export default function ChatPage() {
+function ChatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isClient } = useUser();
@@ -72,8 +72,23 @@ export default function ChatPage() {
       />
       
       {/* Directory (Team Members & Files) */}
-      <DirectoryPanel conversation={selectedConversation} />
+      <DirectoryPanel 
+        conversation={selectedConversation}
+        onConversationUpdated={setSelectedConversation}
+      />
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    }>
+      <ChatContent />
+    </Suspense>
   );
 }
 

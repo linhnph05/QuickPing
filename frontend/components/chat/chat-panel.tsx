@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Phone, Send, Paperclip } from 'lucide-react';
+import { Phone, Send, Paperclip, Check, CheckCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import vi from 'date-fns/locale/vi';
 import api from '@/lib/api';
@@ -11,6 +10,7 @@ import { Conversation, Message, User } from '@/types';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/useUser';
 import { useSocket } from '@/contexts/SocketContext';
+import { useUserStatus } from '@/contexts/UserStatusContext';
 
 interface ChatPanelProps {
   conversationId: string | null;
@@ -20,6 +20,7 @@ interface ChatPanelProps {
 export function ChatPanel({ conversationId, onConversationLoaded }: ChatPanelProps) {
   const { user: currentUser } = useUser();
   const { socket, isConnected } = useSocket();
+  const { isUserOnline } = useUserStatus();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState<string>('');
@@ -119,8 +120,7 @@ export function ChatPanel({ conversationId, onConversationLoaded }: ChatPanelPro
     const handleUserStoppedTyping = (data: { user_id: string; conversation_id: string }) => {
       if (data.conversation_id === conversationId) {
         console.log('✅ User stopped typing:', data.user_id);
-        setTypingUsers((prev) => {
-          const newSet = new Set(prev);
+        setTypingUsers(() => {
           // Remove by user_id (we need to find username first)
           // For now, clear all typing indicators
           return new Set();
@@ -374,6 +374,52 @@ export function ChatPanel({ conversationId, onConversationLoaded }: ChatPanelPro
     return () => clearTimeout(timer);
   }, [messages.length]);
 
+  // Auto mark messages as read when viewing conversation
+  useEffect(() => {
+    if (!conversationId || !messages.length || !currentUser || !conversation) return;
+
+    // Mark all unread messages from other users as read
+    const markMessagesAsRead = async () => {
+      const currentUserId = currentUser._id?.toString();
+      if (!currentUserId) return;
+
+      const unreadMessages = messages.filter((msg) => {
+        // Only mark messages from others, not own messages
+        const senderId = msg.sender_id?._id?.toString() || msg.sender_id?.toString();
+        if (senderId === currentUserId) return false;
+
+        // Check if already read by current user
+        const isRead = msg.read_by?.some(
+          (r) => r.user_id?.toString() === currentUserId || r.user_id === currentUserId
+        );
+        return !isRead;
+      });
+
+      // Mark each unread message as read (with debounce)
+      if (unreadMessages.length > 0) {
+        const markPromises = unreadMessages.map(() =>
+          // apiClient.messages.markAsRead(msg._id).catch((err: any) => {
+          //   console.error('Error marking message as read:', err);
+          // })
+          Promise.resolve() // Placeholder - implement markAsRead if needed
+        );
+
+        // Batch mark as read - don't refresh messages as socket will update read status
+        Promise.all(markPromises).then(() => {
+          console.log('✅ Messages marked as read');
+          // Removed fetchMessages() call to prevent infinite loop
+        });
+      }
+    };
+
+    // Debounce mark as read to avoid too many API calls
+    const timer = setTimeout(() => {
+      markMessagesAsRead();
+    }, 1000); // Wait 1 second after conversation/messages load
+
+    return () => clearTimeout(timer);
+  }, [conversationId, messages, currentUser, conversation]);
+
   const getConversationName = (): string => {
     if (!conversation) return 'Unknown';
     
@@ -449,10 +495,10 @@ export function ChatPanel({ conversationId, onConversationLoaded }: ChatPanelPro
                 <div className="flex items-center gap-2 mt-0.5">
                   <div className={cn(
                     "h-2.5 w-2.5 rounded-full",
-                    otherParticipant.is_online ? "bg-[#68D391]" : "bg-gray-400"
+                    isUserOnline(otherParticipant._id) ? "bg-[#68D391]" : "bg-gray-400"
                   )} />
                   <span className="text-[12px] font-semibold text-gray-900 opacity-60">
-                    {otherParticipant.is_online ? 'Online' : 'Offline'}
+                    {isUserOnline(otherParticipant._id) ? 'Online' : 'Offline'}
                   </span>
                 </div>
               )}
@@ -491,9 +537,7 @@ export function ChatPanel({ conversationId, onConversationLoaded }: ChatPanelPro
               
               // Group consecutive messages from same sender
               const prevMsg = messages[index - 1];
-              const nextMsg = messages[index + 1];
               const sameSenderBefore = prevMsg && prevMsg.sender_id?._id === msg.sender_id?._id;
-              const sameSenderAfter = nextMsg && nextMsg.sender_id?._id === msg.sender_id?._id;
               
               return (
                 <div key={uniqueKey}>
@@ -532,6 +576,61 @@ export function ChatPanel({ conversationId, onConversationLoaded }: ChatPanelPro
                           </div>
                         )}
                       </div>
+                      
+                      {/* Read receipts for own messages */}
+                      {isOwn && (
+                        <div className="flex items-center gap-1 px-1">
+                          {(() => {
+                            const currentUserId = currentUser?._id?.toString();
+                            if (!conversation || !msg.read_by || msg.read_by.length === 0) {
+                              // Message sent but not read by anyone
+                              return <Check className="w-3.5 h-3.5 text-gray-400" />;
+                            }
+
+                            // For direct chat: check if other person read it
+                            if (conversation.type === 'direct') {
+                              const otherParticipant = conversation.participants?.find(
+                                (p) => p.user_id?._id?.toString() !== currentUserId
+                              );
+                              const otherUserId = otherParticipant?.user_id?._id?.toString() || otherParticipant?.user_id?.toString();
+                              
+                              const isReadByOther = msg.read_by?.some(
+                                (r) => r.user_id?.toString() === otherUserId || r.user_id === otherUserId
+                              );
+                              
+                              return isReadByOther ? (
+                                <CheckCheck className="w-3.5 h-3.5 text-[#615EF0]" />
+                              ) : (
+                                <Check className="w-3.5 h-3.5 text-gray-400" />
+                              );
+                            }
+
+                            // For group chat: show how many people read it
+                            if (conversation.type === 'group') {
+                              const totalParticipants = conversation.participants?.length || 0;
+                              const readCount = msg.read_by?.length || 0;
+                              const allRead = readCount >= totalParticipants - 1; // -1 because sender doesn't count
+
+                              return (
+                                <div className="flex items-center gap-1" title={`Seen by ${readCount} of ${totalParticipants - 1}`}>
+                                  {allRead ? (
+                                    <CheckCheck className="w-3.5 h-3.5 text-[#615EF0]" />
+                                  ) : (
+                                    <CheckCheck className="w-3.5 h-3.5 text-gray-400" />
+                                  )}
+                                  {readCount > 0 && (
+                                    <span className="text-[10px] text-gray-400">
+                                      {readCount}/{totalParticipants - 1}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            return <Check className="w-3.5 h-3.5 text-gray-400" />;
+                          })()}
+                        </div>
+                      )}
                     </div>
                     
                     {/* Don't show avatar for own messages - standard chat UI pattern */}

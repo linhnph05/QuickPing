@@ -2,6 +2,8 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, MessageSquare, UserPlus, Ban } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import vi from 'date-fns/locale/vi';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -95,7 +97,14 @@ export function UserProfileModal({
                 {user.is_online ? (
                   <Badge className="mt-2 bg-green-500">● Online</Badge>
                 ) : (
-                  <Badge variant="secondary" className="mt-2">Offline</Badge>
+                  <div className="mt-2">
+                    <Badge variant="secondary">Offline</Badge>
+                    {user.last_seen && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Last seen {formatDistanceToNow(new Date(user.last_seen), { addSuffix: true, locale: vi })}
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {user.bio && (

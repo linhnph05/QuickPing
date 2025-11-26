@@ -347,6 +347,51 @@ export const mockAPI = {
       
       return { data: { conversation: newConversation } };
     },
+    
+    changeParticipantRole: async (conversationId: string, userId: string, role: 'admin' | 'moderator' | 'member') => {
+      await delay();
+      const conversations = getFromStorage(STORAGE_KEYS.CONVERSATIONS, INITIAL_CONVERSATIONS);
+      const conversationIndex = conversations.findIndex((c: Conversation) => c._id === conversationId);
+      
+      if (conversationIndex === -1) {
+        throw new Error('Conversation not found');
+      }
+      
+      const participantIndex = conversations[conversationIndex].participants.findIndex(
+        (p: any) => p.user_id._id === userId
+      );
+      
+      if (participantIndex === -1) {
+        throw new Error('Participant not found');
+      }
+      
+      conversations[conversationIndex].participants[participantIndex].role = role;
+      conversations[conversationIndex].updated_at = new Date();
+      
+      saveToStorage(STORAGE_KEYS.CONVERSATIONS, conversations);
+      
+      return { data: { conversation: conversations[conversationIndex] } };
+    },
+    
+    removeParticipant: async (conversationId: string, userId: string) => {
+      await delay();
+      const conversations = getFromStorage(STORAGE_KEYS.CONVERSATIONS, INITIAL_CONVERSATIONS);
+      const conversationIndex = conversations.findIndex((c: Conversation) => c._id === conversationId);
+      
+      if (conversationIndex === -1) {
+        throw new Error('Conversation not found');
+      }
+      
+      conversations[conversationIndex].participants = conversations[conversationIndex].participants.filter(
+        (p: any) => p.user_id._id !== userId
+      );
+      
+      conversations[conversationIndex].updated_at = new Date();
+      
+      saveToStorage(STORAGE_KEYS.CONVERSATIONS, conversations);
+      
+      return { data: { conversation: conversations[conversationIndex] } };
+    },
   },
   
   // ==========================================================================
@@ -529,6 +574,16 @@ export const mockAPI = {
       await delay();
       const friends = getFromStorage(STORAGE_KEYS.FRIENDS, []);
       return { data: { friends } };
+    },
+    
+    getRequests: async () => {
+      await delay();
+      const friends = getFromStorage(STORAGE_KEYS.FRIENDS, []);
+      const currentUser = getFromStorage(STORAGE_KEYS.CURRENT_USER);
+      const requests = friends.filter((f: any) => 
+        f.friend_id._id === currentUser._id && f.status === 'pending'
+      );
+      return { data: { requests } };
     },
     
     sendRequest: async (friendId: string) => {

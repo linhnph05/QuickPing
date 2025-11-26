@@ -20,9 +20,11 @@ import { useRouter } from 'next/navigation';
 import { useDebounce } from '@/hooks/useDebounce';
 import { apiClient } from '@/lib/api-client';
 import { User } from '@/types';
+import { useUserStatus } from '@/contexts/UserStatusContext';
 
 export default function SearchPage() {
   const router = useRouter();
+  const { isUserOnline } = useUserStatus();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const debouncedQuery = useDebounce(query, 300);
@@ -168,12 +170,17 @@ export default function SearchPage() {
                       <Card className="hover:bg-accent/50 transition-colors">
                         <CardContent className="p-4">
                           <div className="flex items-center gap-3">
-                            <Avatar className="h-12 w-12">
-                              <AvatarImage src={user.avatar_url} />
-                              <AvatarFallback>
-                                {user.username?.[0]?.toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
+                            <div className="relative">
+                              <Avatar className="h-12 w-12">
+                                <AvatarImage src={user.avatar_url} />
+                                <AvatarFallback>
+                                  {user.username?.[0]?.toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              {isUserOnline(user._id) && (
+                                <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
+                              )}
+                            </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold truncate">{user.username}</p>
                               <p className="text-sm text-muted-foreground truncate">

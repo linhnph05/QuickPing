@@ -1,27 +1,29 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, FileText, Image, FileSpreadsheet, File, MoreHorizontal, UserPlus } from 'lucide-react';
+import { Download, FileText, Image, FileSpreadsheet, File, MoreHorizontal, UserPlus, Crown, Shield, User as UserIcon, UserMinus, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import api from '@/lib/api';
+import { apiClient } from '@/lib/api-client';
 import { User, FileAttachment, Conversation } from '@/types';
 import { cn } from '@/lib/utils';
 import { AddMembersModal } from '@/components/modals/add-members-modal';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useUserStatus } from '@/contexts/UserStatusContext';
 
 interface DirectoryPanelProps {
   conversation?: Conversation | null;
+  onConversationUpdated?: (conversation: Conversation) => void;
 }
 
-export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
+export function DirectoryPanel({ conversation, onConversationUpdated }: DirectoryPanelProps) {
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<string>('member');
+  const { isUserOnline } = useUserStatus();
 
   useEffect(() => {
     if (conversation) {
@@ -108,22 +110,6 @@ export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
     }
   };
 
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType?.startsWith('image/')) return Image;
-    if (mimeType?.includes('spreadsheet') || mimeType?.includes('excel')) return FileSpreadsheet;
-    if (mimeType?.includes('pdf')) return FileText;
-    if (mimeType?.includes('word') || mimeType?.includes('document')) return FileText;
-    return File;
-  };
-
-  const getFileColor = (mimeType: string) => {
-    if (mimeType?.startsWith('image/')) return 'text-green-500';
-    if (mimeType?.includes('pdf')) return 'text-red-500';
-    if (mimeType?.includes('word') || mimeType?.includes('document')) return 'text-blue-500';
-    if (mimeType?.includes('spreadsheet') || mimeType?.includes('excel')) return 'text-purple-500';
-    return 'text-gray-500';
-  };
-
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -139,7 +125,7 @@ export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
     // Reload conversation data
     if (conversation) {
       try {
-        const response = await api.get(`/conversations/${conversation._id}`);
+        await api.get(`/conversations/${conversation._id}`);
         // Update team members with new data
         fetchTeamMembers();
       } catch (error) {
@@ -150,6 +136,88 @@ export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
 
   const canAddMembers = conversation?.type === 'group' && 
     (currentUserRole === 'admin' || currentUserRole === 'moderator');
+
+  const getMemberRole = (memberId: string): 'admin' | 'moderator' | 'member' => {
+    if (!conversation) return 'member';
+    const participant = conversation.participants?.find(
+      (p) => (p.user_id?._id?.toString() || p.user_id?.toString()) === memberId
+    );
+    return participant?.role || 'member';
+  };
+
+  const handleChangeRole = async (memberId: string, newRole: 'admin' | 'moderator' | 'member') => {
+    if (!conversation) return;
+    
+    try {
+      await apiClient.conversations.changeParticipantRole(conversation._id, memberId, newRole);
+      // Reload conversation to get updated data
+      const response = await api.get(`/conversations/${conversation._id}`);
+      const updatedConversation = response.data.conversation;
+      fetchTeamMembers();
+      // Notify parent component of conversation update
+      onConversationUpdated?.(updatedConversation);
+    } catch (error: any) {
+      console.error('Error changing role:', error);
+      alert(error?.response?.data?.error || 'Không thể thay đổi role. Vui lòng thử lại.');
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!conversation) return;
+    
+    if (!confirm('Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?')) {
+      return;
+    }
+    
+    try {
+      await apiClient.conversations.removeParticipant(conversation._id, memberId);
+      fetchTeamMembers();
+      // Reload conversation
+      const response = await api.get(`/conversations/${conversation._id}`);
+      const updatedConversation = response.data.conversation;
+      onConversationUpdated?.(updatedConversation);
+    } catch (error: any) {
+      console.error('Error removing member:', error);
+      alert(error?.response?.data?.error || 'Không thể xóa thành viên. Vui lòng thử lại.');
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!conversation) return;
+    
+    if (!confirm('Bạn có chắc chắn muốn rời khỏi nhóm này?')) {
+      return;
+    }
+    
+    const currentUserId = typeof window !== 'undefined' && localStorage.getItem('user')
+      ? JSON.parse(localStorage.getItem('user')!)._id
+      : null;
+    
+    if (!currentUserId) return;
+    
+    try {
+      await apiClient.conversations.removeParticipant(conversation._id, currentUserId);
+      // Redirect to groups page or home
+      window.location.href = '/groups';
+    } catch (error: any) {
+      console.error('Error leaving group:', error);
+      alert(error?.response?.data?.error || 'Không thể rời khỏi nhóm. Vui lòng thử lại.');
+    }
+  };
+
+  const canManageMember = (memberId: string): boolean => {
+    if (!conversation || conversation.type !== 'group') return false;
+    if (currentUserRole !== 'admin') return false; // Only admins can manage members
+    
+    const currentUserId = typeof window !== 'undefined' && localStorage.getItem('user')
+      ? JSON.parse(localStorage.getItem('user')!)._id
+      : null;
+    
+    // Cannot manage yourself
+    if (memberId === currentUserId) return false;
+    
+    return true;
+  };
 
   return (
     <div className="border-l border-gray-200 flex flex-col bg-white shadow-[1px_0px_0px_0px_rgba(0,0,0,0.08)] h-full">
@@ -193,22 +261,104 @@ export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
                 {conversation ? 'No members found' : 'Select a conversation to see members'}
               </p>
             ) : (
-              teamMembers.map((member) => (
-                <div key={member._id} className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                  <Avatar className="h-12 w-12 rounded-xl flex-shrink-0">
-                    <AvatarImage src={member.avatar_url} />
-                    <AvatarFallback className="rounded-xl bg-gray-200">
-                      {member.username[0]?.toUpperCase() || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-semibold leading-[21px] truncate">{member.username}</p>
-                    <p className="text-[12px] font-semibold text-gray-900 opacity-40 truncate">
-                      {member.mssv || member.role || 'Member'}
-                    </p>
+              teamMembers.map((member) => {
+                const memberRole = getMemberRole(member._id);
+                const canManage = canManageMember(member._id);
+
+                return (
+                  <div key={member._id} className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
+                    <div className="relative">
+                      <Avatar className="h-12 w-12 rounded-xl flex-shrink-0">
+                        <AvatarImage src={member.avatar_url} />
+                        <AvatarFallback className="rounded-xl bg-gray-200">
+                          {member.username[0]?.toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isUserOnline(member._id) && (
+                        <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[14px] font-semibold leading-[21px] truncate">{member.username}</p>
+                        {memberRole === 'admin' && (
+                          <Crown className="w-3.5 h-3.5 text-yellow-500" />
+                        )}
+                        {memberRole === 'moderator' && (
+                          <Shield className="w-3.5 h-3.5 text-blue-500" />
+                        )}
+                      </div>
+                      <p className="text-[12px] font-semibold text-gray-900 opacity-40 truncate">
+                        {member.mssv || memberRole === 'admin' ? 'Admin' : memberRole === 'moderator' ? 'Moderator' : 'Member'}
+                      </p>
+                    </div>
+                    
+                    {/* Role management menu for admins */}
+                    {canManage && conversation?.type === 'group' && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-200 rounded">
+                            <MoreHorizontal className="w-4 h-4 text-gray-600" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-48 p-1" align="end">
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold px-2 py-1 text-gray-500">Change Role</p>
+                            
+                            {memberRole !== 'admin' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start"
+                                onClick={() => handleChangeRole(member._id, 'admin')}
+                              >
+                                <Crown className="w-4 h-4 mr-2 text-yellow-500" />
+                                Promote to Admin
+                              </Button>
+                            )}
+                            
+                            {memberRole !== 'moderator' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start"
+                                onClick={() => handleChangeRole(member._id, 'moderator')}
+                              >
+                                <Shield className="w-4 h-4 mr-2 text-blue-500" />
+                                Promote to Moderator
+                              </Button>
+                            )}
+                            
+                            {memberRole !== 'member' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start"
+                                onClick={() => handleChangeRole(member._id, 'member')}
+                              >
+                                <UserIcon className="w-4 h-4 mr-2" />
+                                Demote to Member
+                              </Button>
+                            )}
+                            
+                            <div className="h-px bg-gray-200 my-1" />
+                            
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleRemoveMember(member._id)}
+                            >
+                              <UserMinus className="w-4 h-4 mr-2" />
+                              Remove from Group
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -297,6 +447,20 @@ export function DirectoryPanel({ conversation }: DirectoryPanelProps) {
           </div>
         </div>
       </div>
+
+      {/* Leave Group Button for group chats */}
+      {conversation && conversation.type === 'group' && (
+        <div className="border-t border-gray-200 p-4">
+          <Button
+            variant="outline"
+            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+            onClick={handleLeaveGroup}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Rời khỏi nhóm
+          </Button>
+        </div>
+      )}
 
       {/* Add Members Modal */}
       {conversation && conversation.type === 'group' && (

@@ -38,6 +38,7 @@ router.get('/conversation/:conversationId', authenticate, async (req, res) => {
       .populate('sender_id', 'username avatar_url')
       .populate('reply_to')
       .populate('file_info.file_id')
+      .populate('read_by.user_id', 'username avatar_url')
       .sort({ created_at: -1 })
       .limit(parseInt(limit));
 

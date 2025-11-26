@@ -3,12 +3,9 @@ const nextConfig = {
   // Enable standalone output for Docker
   output: 'standalone',
   
-  // Ignore TypeScript and ESLint errors during build
+  // Ignore TypeScript errors during build
   typescript: {
     ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
   },
   
   async rewrites() {

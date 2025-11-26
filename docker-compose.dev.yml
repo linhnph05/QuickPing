@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: quickping-mongodb-dev
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: quickping
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - quickping-network
+
+  # Backend API - Development Mode
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: quickping-backend-dev
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=development
+      - PORT=5001
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/quickping}
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      # Mount source code for hot reload
+      - ./backend:/app
+      - /app/node_modules
+      - ./backend/uploads:/app/uploads
+    networks:
+      - quickping-network
+    command: npm run dev
+
+  # Frontend - Development Mode
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: quickping-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:5001/api
+      - NEXT_PUBLIC_SOCKET_URL=http://localhost:5001
+      - NEXT_PUBLIC_USE_MOCK=false
+    depends_on:
+      - backend
+    volumes:
+      # Mount source code for hot reload
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - quickping-network
+    command: npm run dev
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+
+networks:
+  quickping-network:
+    driver: bridge
+

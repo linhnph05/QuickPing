@@ -14,7 +14,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const API_URL = process.env.API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.API_URL || 'http://localhost:5001/api';
 const BASE_URL = API_URL.replace('/api', '');
 
 // Colors for terminal output

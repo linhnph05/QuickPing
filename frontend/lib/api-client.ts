@@ -61,6 +61,14 @@ const realAPI = {
     update: async (id: string, data: { name?: string; description?: string; participants?: any[] }) => {
       return await api.put(`/conversations/${id}`, data);
     },
+    
+    changeParticipantRole: async (conversationId: string, userId: string, role: 'admin' | 'moderator' | 'member') => {
+      return await api.put(`/conversations/${conversationId}/participants/${userId}/role`, { role });
+    },
+    
+    removeParticipant: async (conversationId: string, userId: string) => {
+      return await api.delete(`/conversations/${conversationId}/participants/${userId}`);
+    },
   },
   
   // ==========================================================================
@@ -85,6 +93,10 @@ const realAPI = {
     
     removeReaction: async (messageId: string, emoji: string) => {
       return await api.delete(`/messages/${messageId}/reaction/${emoji}`);
+    },
+    
+    markAsRead: async (messageId: string) => {
+      return await api.post(`/messages/${messageId}/read`);
     },
   },
   

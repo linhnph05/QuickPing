@@ -278,5 +278,141 @@ router.delete('/:conversationId/pin/:messageId', authenticate, async (req, res) 
   }
 });
 
+// Change participant role (promote/demote)
+router.put('/:conversationId/participants/:userId/role', authenticate, [
+  body('role').isIn(['admin', 'moderator', 'member'])
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { conversationId, userId } = req.params;
+    const { role } = req.body;
+    const currentUserId = req.user._id;
+
+    const conversation = await Conversation.findById(conversationId);
+    
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    if (conversation.type !== 'group') {
+      return res.status(400).json({ error: 'Can only change roles in group conversations' });
+    }
+
+    // Check if current user has permission (must be admin)
+    const currentParticipant = conversation.participants.find(
+      p => p.user_id.toString() === currentUserId.toString()
+    );
+
+    if (!currentParticipant || currentParticipant.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can change roles' });
+    }
+
+    // Find the participant to change role
+    const targetParticipant = conversation.participants.find(
+      p => p.user_id.toString() === userId
+    );
+
+    if (!targetParticipant) {
+      return res.status(404).json({ error: 'User is not a participant in this conversation' });
+    }
+
+    // Prevent changing own role
+    if (userId === currentUserId.toString()) {
+      return res.status(400).json({ error: 'Cannot change your own role' });
+    }
+
+    // Prevent demoting the last admin
+    if (targetParticipant.role === 'admin' && role !== 'admin') {
+      const adminCount = conversation.participants.filter(p => p.role === 'admin').length;
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot demote the last admin. Promote another admin first.' });
+      }
+    }
+
+    // Update role
+    targetParticipant.role = role;
+    await conversation.save();
+
+    // Populate and return updated conversation
+    await conversation.populate('participants.user_id', 'username avatar_url is_online last_seen role');
+    await conversation.populate('created_by', 'username avatar_url');
+
+    res.json({ 
+      conversation,
+      message: `User role changed to ${role}` 
+    });
+  } catch (error) {
+    console.error('Change role error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Remove participant from group
+router.delete('/:conversationId/participants/:userId', authenticate, async (req, res) => {
+  try {
+    const { conversationId, userId } = req.params;
+    const currentUserId = req.user._id;
+
+    const conversation = await Conversation.findById(conversationId);
+    
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    if (conversation.type !== 'group') {
+      return res.status(400).json({ error: 'Can only remove participants from group conversations' });
+    }
+
+    // Check if user is trying to remove themselves (leave group)
+    const isSelf = userId === currentUserId.toString();
+
+    if (!isSelf) {
+      // Check if current user has permission (admin or moderator)
+      const currentParticipant = conversation.participants.find(
+        p => p.user_id.toString() === currentUserId.toString()
+      );
+
+      if (!currentParticipant || !['admin', 'moderator'].includes(currentParticipant.role)) {
+        return res.status(403).json({ error: 'Only admins and moderators can remove members' });
+      }
+
+      // Prevent removing the last admin
+      const targetParticipant = conversation.participants.find(
+        p => p.user_id.toString() === userId
+      );
+
+      if (targetParticipant && targetParticipant.role === 'admin') {
+        const adminCount = conversation.participants.filter(p => p.role === 'admin').length;
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: 'Cannot remove the last admin' });
+        }
+      }
+    }
+
+    // Remove participant
+    conversation.participants = conversation.participants.filter(
+      p => p.user_id.toString() !== userId
+    );
+
+    await conversation.save();
+
+    // Populate and return updated conversation
+    await conversation.populate('participants.user_id', 'username avatar_url is_online last_seen role');
+    await conversation.populate('created_by', 'username avatar_url');
+
+    res.json({ 
+      conversation,
+      message: isSelf ? 'Left group successfully' : 'Participant removed successfully'
+    });
+  } catch (error) {
+    console.error('Remove participant error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;
 
