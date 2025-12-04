@@ -1,18 +1,13 @@
 /**
  * API CLIENT WRAPPER
- * 
- * Provides unified interface cho cả Mock và Real API
- * Switch bằng environment variable NEXT_PUBLIC_USE_MOCK
+ *
+ * Provides unified interface for Real API
  */
 
 import api from './api';
-import mockAPI from './mock-api';
-
-// Check if we should use mock (default to REAL API)
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
 // Real API implementation (maps to backend endpoints)
-const realAPI = {
+const apiClient = {
   // ==========================================================================
   // AUTH
   // ==========================================================================
@@ -58,7 +53,7 @@ const realAPI = {
       });
     },
     
-    update: async (id: string, data: { name?: string; description?: string; participants?: any[] }) => {
+    update: async (id: string, data: { name?: string; description?: string; avatar_url?: string; participants?: any[] }) => {
       return await api.put(`/conversations/${id}`, data);
     },
     
@@ -68,6 +63,14 @@ const realAPI = {
     
     removeParticipant: async (conversationId: string, userId: string) => {
       return await api.delete(`/conversations/${conversationId}/participants/${userId}`);
+    },
+    
+    pinMessage: async (conversationId: string, messageId: string) => {
+      return await api.post(`/conversations/${conversationId}/pin`, { message_id: messageId });
+    },
+    
+    unpinMessage: async (conversationId: string, messageId: string) => {
+      return await api.delete(`/conversations/${conversationId}/pin/${messageId}`);
     },
   },
   
@@ -79,7 +82,7 @@ const realAPI = {
       return await api.get(`/messages/conversation/${conversationId}`);
     },
     
-    send: async (data: { conversation_id: string; content: string; type?: string; reply_to?: string }) => {
+    send: async (data: { conversation_id: string; content: string; type?: string; reply_to?: string; thread_id?: string }) => {
       return await api.post('/messages', data);
     },
     
@@ -97,6 +100,10 @@ const realAPI = {
     
     markAsRead: async (messageId: string) => {
       return await api.post(`/messages/${messageId}/read`);
+    },
+    
+    getThreadReplies: async (threadId: string) => {
+      return await api.get(`/messages/thread/${threadId}`);
     },
   },
   
@@ -146,29 +153,116 @@ const realAPI = {
   // FILES
   // ==========================================================================
   files: {
-    upload: async (file: File) => {
+    upload: async (file: File, conversationId?: string, onProgress?: (progress: number) => void) => {
       const formData = new FormData();
       formData.append('file', file);
+      if (conversationId) {
+        formData.append('conversation_id', conversationId);
+      }
       
       return await api.post('/files/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(progress);
+          }
+        },
       });
+    },
+    
+    uploadMultiple: async (
+      files: File[], 
+      conversationId?: string, 
+      onProgress?: (fileIndex: number, progress: number) => void
+    ) => {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+      if (conversationId) {
+        formData.append('conversation_id', conversationId);
+      }
+      
+      return await api.post('/files/upload-multiple', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            // Approximate which file we're on based on progress
+            const fileIndex = Math.min(
+              Math.floor((progress / 100) * files.length),
+              files.length - 1
+            );
+            onProgress(fileIndex, progress);
+          }
+        },
+      });
+    },
+    
+    getInfo: async (fileId: string) => {
+      return await api.get(`/files/${fileId}`);
+    },
+    
+    getDownloadUrl: (fileId: string) => {
+      return `/api/files/${fileId}/download`;
+    },
+  },
+  
+  // ==========================================================================
+  // VOTES
+  // ==========================================================================
+  votes: {
+    create: async (data: {
+      conversation_id: string;
+      question: string;
+      options: string[];
+      settings?: { allow_multiple?: boolean; anonymous?: boolean };
+      expires_at?: string;
+    }) => {
+      return await api.post('/votes', data);
+    },
+    
+    getByConversation: async (conversationId: string) => {
+      return await api.get(`/votes/conversation/${conversationId}`);
+    },
+    
+    vote: async (voteId: string, optionIndex: number) => {
+      return await api.post(`/votes/${voteId}/vote`, { option_index: optionIndex });
+    },
+    
+    getById: async (voteId: string) => {
+      return await api.get(`/votes/${voteId}`);
+    },
+  },
+  
+  // ==========================================================================
+  // AI
+  // ==========================================================================
+  ai: {
+    summarize: async (conversationId: string) => {
+      const response = await api.post('/ai/summarize', {
+        conversation_id: conversationId,
+        type: 'conversation',
+      });
+      return response.data;
+    },
+    
+    summarizeThread: async (threadId: string) => {
+      const response = await api.post('/ai/summarize', {
+        thread_id: threadId,
+        type: 'thread',
+      });
+      return response.data;
     },
   },
 };
 
-// Export the appropriate API based on environment
-export const apiClient = USE_MOCK ? mockAPI : realAPI;
-
-// Utility to check current mode
-export const isUsingMockAPI = () => USE_MOCK;
-
-// Utility to log API mode on app start
-if (typeof window !== 'undefined') {
-  console.log(`🔌 API Mode: ${USE_MOCK ? '📦 MOCK' : '🌐 REAL'}`);
-}
-
+// Export the API client
+export { apiClient };
 export default apiClient;
 

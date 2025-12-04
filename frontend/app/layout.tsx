@@ -4,6 +4,7 @@ import './globals.css';
 import { SocketProvider } from '@/contexts/SocketContext';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { UserStatusProvider } from '@/contexts/UserStatusContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import LayoutContent from './layout-content';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -13,6 +14,30 @@ export const metadata: Metadata = {
   description: 'Chat platform for students and teachers',
 };
 
+// Script to prevent FOUC (Flash of Unstyled Content)
+const themeScript = `
+  (function() {
+    try {
+      var theme = localStorage.getItem('quickping-theme') || 'system';
+      var fontSize = localStorage.getItem('quickping-font-size') || 'medium';
+      
+      var resolved = theme;
+      if (theme === 'system') {
+        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      
+      if (resolved === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+      document.documentElement.style.colorScheme = resolved;
+      document.documentElement.classList.add('font-' + fontSize);
+      
+      var fontSizeMap = { small: '14px', medium: '16px', large: '18px' };
+      document.documentElement.style.setProperty('--base-font-size', fontSizeMap[fontSize]);
+    } catch (e) {}
+  })();
+`;
+
 export default function RootLayout({
   children,
 }: {
@@ -20,14 +45,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className={inter.className} suppressHydrationWarning>
-        <SocketProvider>
-          <SidebarProvider>
-            <UserStatusProvider>
-              <LayoutContent>{children}</LayoutContent>
-            </UserStatusProvider>
-          </SidebarProvider>
-        </SocketProvider>
+        <ThemeProvider>
+          <SocketProvider>
+            <SidebarProvider>
+              <UserStatusProvider>
+                <LayoutContent>{children}</LayoutContent>
+              </UserStatusProvider>
+            </SidebarProvider>
+          </SocketProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

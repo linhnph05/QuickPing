@@ -9,17 +9,15 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Moon, Sun, Type, Bell, Lock, User as UserIcon, X } from 'lucide-react';
+import { Moon, Sun, Type, Bell, Lock, User as UserIcon, X, Monitor, BellRing, BellOff } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useUser } from '@/hooks/useUser';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user } = useUser();
-  
-  // Theme state
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const { theme, setTheme, fontSize, setFontSize, resolvedTheme } = useTheme();
   
   // Notification states
   const [notifications, setNotifications] = useState({
@@ -28,34 +26,67 @@ export default function SettingsPage() {
     groupInvites: true,
     mentions: true,
     sound: true,
+    desktop: false,
+    doNotDisturb: false,
   });
+  
+  // Privacy states
+  const [privacy, setPrivacy] = useState({
+    showOnlineStatus: true,
+    showReadReceipts: true,
+    messagePrivacy: 'everyone' as 'everyone' | 'friends',
+    groupPrivacy: 'everyone' as 'everyone' | 'friends' | 'none',
+  });
+  
+  // Desktop notification permission state
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   
   // Loading states
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Load user preferences
+  // Check notification permission on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  // Load user preferences from backend
   useEffect(() => {
     if (user?.preferences) {
-      setTheme(user.preferences.theme || 'light');
-      setFontSize(user.preferences.font_size || 'medium');
+      // Theme and fontSize are now managed by ThemeContext
+      // Load notification and privacy preferences
+      if (user.preferences.notifications) {
+        setNotifications(prev => ({
+          ...prev,
+          ...user.preferences.notifications,
+        }));
+      }
+      if (user.preferences.privacy) {
+        setPrivacy(prev => ({
+          ...prev,
+          ...user.preferences.privacy,
+        }));
+      }
     }
   }, [user]);
 
-  // Apply theme
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+  // Request desktop notification permission
+  const requestNotificationPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === 'granted') {
+        setNotifications(prev => ({ ...prev, desktop: true }));
+        // Show a test notification
+        new Notification('QuickPing', {
+          body: 'Thông báo đã được bật thành công!',
+          icon: '/logo.png',
+        });
+      }
     }
-  }, [theme]);
-
-  // Apply font size
-  useEffect(() => {
-    const root = document.documentElement;
-    root.style.fontSize = fontSize === 'small' ? '14px' : fontSize === 'large' ? '18px' : '16px';
-  }, [fontSize]);
+  };
 
   const handleSavePreferences = async () => {
     try {
@@ -63,6 +94,8 @@ export default function SettingsPage() {
       await apiClient.users.updatePreferences({
         theme,
         font_size: fontSize,
+        notifications,
+        privacy,
       });
       
       setSaveSuccess(true);
@@ -122,37 +155,59 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Sun className="w-5 h-5" />
+                {resolvedTheme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
                 Theme
               </CardTitle>
               <CardDescription>
-                Chọn giao diện sáng hoặc tối cho ứng dụng
+                Chọn giao diện sáng, tối hoặc theo hệ thống
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Light/Dark Mode */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {theme === 'dark' ? (
-                    <Moon className="w-5 h-5 text-blue-500" />
-                  ) : (
-                    <Sun className="w-5 h-5 text-yellow-500" />
-                  )}
-                  <div>
-                    <Label htmlFor="theme-toggle" className="font-medium">
-                      Dark Mode
-                    </Label>
-                    <p className="text-sm text-gray-500">
-                      {theme === 'dark' ? 'Đang sử dụng chế độ tối' : 'Đang sử dụng chế độ sáng'}
-                    </p>
-                  </div>
+              {/* Theme Options */}
+              <div className="grid grid-cols-3 gap-3">
+                <div
+                  className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    theme === 'light'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-muted-foreground/50'
+                  }`}
+                  onClick={() => setTheme('light')}
+                >
+                  <Sun className={`w-6 h-6 ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className={`text-sm font-medium ${theme === 'light' ? 'text-primary' : ''}`}>Sáng</span>
                 </div>
-                <Switch
-                  id="theme-toggle"
-                  checked={theme === 'dark'}
-                  onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                />
+                
+                <div
+                  className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    theme === 'dark'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-muted-foreground/50'
+                  }`}
+                  onClick={() => setTheme('dark')}
+                >
+                  <Moon className={`w-6 h-6 ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-primary' : ''}`}>Tối</span>
+                </div>
+                
+                <div
+                  className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    theme === 'system'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-muted-foreground/50'
+                  }`}
+                  onClick={() => setTheme('system')}
+                >
+                  <Monitor className={`w-6 h-6 ${theme === 'system' ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className={`text-sm font-medium ${theme === 'system' ? 'text-primary' : ''}`}>Hệ thống</span>
+                </div>
               </div>
+              
+              {theme === 'system' && (
+                <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                  Giao diện sẽ tự động thay đổi theo cài đặt hệ thống của bạn.
+                  Hiện tại đang sử dụng chế độ {resolvedTheme === 'dark' ? 'tối' : 'sáng'}.
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -230,8 +285,8 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               onClick={() => {
-                setTheme(user?.preferences?.theme || 'light');
-                setFontSize(user?.preferences?.font_size || 'medium');
+                setTheme('system');
+                setFontSize('medium');
               }}
             >
               Reset
@@ -246,14 +301,110 @@ export default function SettingsPage() {
         {/* NOTIFICATIONS TAB */}
         {/* ====================================================================== */}
         <TabsContent value="notifications" className="space-y-4">
+          {/* Desktop Notifications Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BellRing className="w-5 h-5" />
+                Thông báo Desktop
+              </CardTitle>
+              <CardDescription>
+                Nhận thông báo ngay cả khi không mở ứng dụng
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {notificationPermission === 'granted' ? (
+                <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                      <Bell className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-green-700 dark:text-green-300">Thông báo đã được bật</p>
+                      <p className="text-sm text-green-600 dark:text-green-400">Bạn sẽ nhận được thông báo từ QuickPing</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={notifications.desktop}
+                    onCheckedChange={(checked) =>
+                      setNotifications({ ...notifications, desktop: checked })
+                    }
+                  />
+                </div>
+              ) : notificationPermission === 'denied' ? (
+                <div className="p-4 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
+                      <BellOff className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-red-700 dark:text-red-300">Thông báo đã bị chặn</p>
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        Vui lòng bật thông báo trong cài đặt trình duyệt của bạn
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-muted rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Bell className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Bật thông báo Desktop</p>
+                        <p className="text-sm text-muted-foreground">
+                          Nhận thông báo ngay cả khi không mở tab QuickPing
+                        </p>
+                      </div>
+                    </div>
+                    <Button onClick={requestNotificationPermission}>
+                      Bật ngay
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Do Not Disturb */}
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <BellOff className={`w-5 h-5 ${notifications.doNotDisturb ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                  <div>
+                    <Label htmlFor="dnd-toggle" className="font-medium">
+                      Không làm phiền
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Tắt tất cả thông báo tạm thời
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="dnd-toggle"
+                  checked={notifications.doNotDisturb}
+                  onCheckedChange={(checked) =>
+                    setNotifications({ ...notifications, doNotDisturb: checked })
+                  }
+                />
+              </div>
+              {notifications.doNotDisturb && (
+                <p className="text-sm text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950 p-3 rounded-lg">
+                  🔕 Chế độ không làm phiền đang bật. Bạn sẽ không nhận được bất kỳ thông báo nào.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Notification Types Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bell className="w-5 h-5" />
-                Thông báo
+                Loại thông báo
               </CardTitle>
               <CardDescription>
-                Quản lý các loại thông báo bạn muốn nhận
+                Chọn các loại thông báo bạn muốn nhận
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -263,7 +414,7 @@ export default function SettingsPage() {
                     <Label htmlFor="notif-messages" className="font-medium">
                       Tin nhắn mới
                     </Label>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Nhận thông báo khi có tin nhắn mới
                     </p>
                   </div>
@@ -283,7 +434,7 @@ export default function SettingsPage() {
                     <Label htmlFor="notif-friends" className="font-medium">
                       Lời mời kết bạn
                     </Label>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Nhận thông báo khi có lời mời kết bạn
                     </p>
                   </div>
@@ -303,7 +454,7 @@ export default function SettingsPage() {
                     <Label htmlFor="notif-groups" className="font-medium">
                       Lời mời vào nhóm
                     </Label>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Nhận thông báo khi được mời vào nhóm
                     </p>
                   </div>
@@ -323,7 +474,7 @@ export default function SettingsPage() {
                     <Label htmlFor="notif-mentions" className="font-medium">
                       Được nhắc đến
                     </Label>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Nhận thông báo khi ai đó nhắc đến bạn
                     </p>
                   </div>
@@ -343,7 +494,7 @@ export default function SettingsPage() {
                     <Label htmlFor="notif-sound" className="font-medium">
                       Âm thanh thông báo
                     </Label>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Phát âm thanh khi có thông báo mới
                     </p>
                   </div>
@@ -358,17 +509,77 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+          
+          {/* Save Button */}
+          <div className="flex justify-end">
+            <Button onClick={handleSavePreferences} disabled={saving}>
+              {saving ? 'Đang lưu...' : saveSuccess ? '✓ Đã lưu' : 'Lưu thay đổi'}
+            </Button>
+          </div>
         </TabsContent>
 
         {/* ====================================================================== */}
         {/* PRIVACY TAB */}
         {/* ====================================================================== */}
         <TabsContent value="privacy" className="space-y-4">
+          {/* Status Privacy Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Lock className="w-5 h-5" />
-                Quyền riêng tư
+                Trạng thái hoạt động
+              </CardTitle>
+              <CardDescription>
+                Kiểm soát ai có thể thấy trạng thái của bạn
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="online-status" className="font-medium">
+                    Hiển thị trạng thái online
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Cho phép người khác thấy khi bạn đang online
+                  </p>
+                </div>
+                <Switch
+                  id="online-status"
+                  checked={privacy.showOnlineStatus}
+                  onCheckedChange={(checked) =>
+                    setPrivacy({ ...privacy, showOnlineStatus: checked })
+                  }
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="read-receipts" className="font-medium">
+                    Xác nhận đã đọc
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Cho phép người khác thấy khi bạn đã đọc tin nhắn
+                  </p>
+                </div>
+                <Switch
+                  id="read-receipts"
+                  checked={privacy.showReadReceipts}
+                  onCheckedChange={(checked) =>
+                    setPrivacy({ ...privacy, showReadReceipts: checked })
+                  }
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Contact Privacy Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="w-5 h-5" />
+                Quyền liên hệ
               </CardTitle>
               <CardDescription>
                 Kiểm soát ai có thể liên hệ với bạn
@@ -379,17 +590,39 @@ export default function SettingsPage() {
                 <div>
                   <Label className="font-medium">Ai có thể nhắn tin cho bạn?</Label>
                   <div className="mt-2 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <input type="radio" name="message-privacy" id="msg-everyone" defaultChecked />
-                      <label htmlFor="msg-everyone" className="text-sm">
-                        Tất cả mọi người
-                      </label>
+                    <div
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        privacy.messagePrivacy === 'everyone'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-muted-foreground/50'
+                      }`}
+                      onClick={() => setPrivacy({ ...privacy, messagePrivacy: 'everyone' })}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        privacy.messagePrivacy === 'everyone' ? 'border-primary bg-primary' : 'border-muted-foreground'
+                      }`}>
+                        {privacy.messagePrivacy === 'everyone' && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <span className="text-sm">Tất cả mọi người</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input type="radio" name="message-privacy" id="msg-friends" />
-                      <label htmlFor="msg-friends" className="text-sm">
-                        Chỉ bạn bè
-                      </label>
+                    <div
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        privacy.messagePrivacy === 'friends'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-muted-foreground/50'
+                      }`}
+                      onClick={() => setPrivacy({ ...privacy, messagePrivacy: 'friends' })}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        privacy.messagePrivacy === 'friends' ? 'border-primary bg-primary' : 'border-muted-foreground'
+                      }`}>
+                        {privacy.messagePrivacy === 'friends' && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <span className="text-sm">Chỉ bạn bè</span>
                     </div>
                   </div>
                 </div>
@@ -399,29 +632,69 @@ export default function SettingsPage() {
                 <div>
                   <Label className="font-medium">Ai có thể thêm bạn vào nhóm?</Label>
                   <div className="mt-2 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <input type="radio" name="group-privacy" id="grp-everyone" defaultChecked />
-                      <label htmlFor="grp-everyone" className="text-sm">
-                        Tất cả mọi người
-                      </label>
+                    <div
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        privacy.groupPrivacy === 'everyone'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-muted-foreground/50'
+                      }`}
+                      onClick={() => setPrivacy({ ...privacy, groupPrivacy: 'everyone' })}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        privacy.groupPrivacy === 'everyone' ? 'border-primary bg-primary' : 'border-muted-foreground'
+                      }`}>
+                        {privacy.groupPrivacy === 'everyone' && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <span className="text-sm">Tất cả mọi người</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input type="radio" name="group-privacy" id="grp-friends" />
-                      <label htmlFor="grp-friends" className="text-sm">
-                        Chỉ bạn bè
-                      </label>
+                    <div
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        privacy.groupPrivacy === 'friends'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-muted-foreground/50'
+                      }`}
+                      onClick={() => setPrivacy({ ...privacy, groupPrivacy: 'friends' })}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        privacy.groupPrivacy === 'friends' ? 'border-primary bg-primary' : 'border-muted-foreground'
+                      }`}>
+                        {privacy.groupPrivacy === 'friends' && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <span className="text-sm">Chỉ bạn bè</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input type="radio" name="group-privacy" id="grp-none" />
-                      <label htmlFor="grp-none" className="text-sm">
-                        Không ai
-                      </label>
+                    <div
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        privacy.groupPrivacy === 'none'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-muted-foreground/50'
+                      }`}
+                      onClick={() => setPrivacy({ ...privacy, groupPrivacy: 'none' })}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        privacy.groupPrivacy === 'none' ? 'border-primary bg-primary' : 'border-muted-foreground'
+                      }`}>
+                        {privacy.groupPrivacy === 'none' && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <span className="text-sm">Không ai</span>
                     </div>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
+          
+          {/* Save Button */}
+          <div className="flex justify-end">
+            <Button onClick={handleSavePreferences} disabled={saving}>
+              {saving ? 'Đang lưu...' : saveSuccess ? '✓ Đã lưu' : 'Lưu thay đổi'}
+            </Button>
+          </div>
         </TabsContent>
 
         {/* ====================================================================== */}

@@ -35,6 +35,32 @@ export const setupSocketIO = (io) => {
       conversations.forEach(conv => {
         socket.join(`conversation_${conv._id}`);
       });
+      
+      // Send initial online statuses for users in user's conversations
+      const participantIds = new Set();
+      conversations.forEach(conv => {
+        conv.participants.forEach(p => {
+          if (p.user_id.toString() !== userId) {
+            participantIds.add(p.user_id.toString());
+          }
+        });
+      });
+      
+      // Get online status for all relevant users
+      if (participantIds.size > 0) {
+        const users = await User.find({ _id: { $in: Array.from(participantIds) } })
+          .select('_id is_online last_seen');
+        
+        // Send bulk status update to the connected user
+        const statusUpdates = users.map(u => ({
+          user_id: u._id.toString(),
+          is_online: u.is_online || false,
+          last_seen: u.last_seen || new Date()
+        }));
+        
+        socket.emit('initial_user_statuses', statusUpdates);
+        console.log(`📤 Sent initial statuses for ${statusUpdates.length} users to ${userId}`);
+      }
     } catch (err) {
       console.error('Join conversations error:', err);
     }
@@ -44,6 +70,29 @@ export const setupSocketIO = (io) => {
       const room = `conversation_${conversationId}`;
       socket.join(room);
       console.log(`✅ User ${userId} joined conversation room: ${room}`);
+      
+      // Send online statuses for participants in this conversation
+      try {
+        const conversation = await Conversation.findById(conversationId)
+          .populate('participants.user_id', '_id is_online last_seen');
+        
+        if (conversation) {
+          const statusUpdates = conversation.participants
+            .filter(p => p.user_id?._id?.toString() !== userId)
+            .map(p => ({
+              user_id: p.user_id?._id?.toString(),
+              is_online: p.user_id?.is_online || false,
+              last_seen: p.user_id?.last_seen || new Date()
+            }));
+          
+          socket.emit('conversation_user_statuses', {
+            conversation_id: conversationId,
+            statuses: statusUpdates
+          });
+        }
+      } catch (err) {
+        console.error('Get conversation statuses error:', err);
+      }
       
       // Confirm join to client
       socket.emit('joined_conversation', { conversation_id: conversationId });
@@ -77,11 +126,104 @@ export const setupSocketIO = (io) => {
       });
     });
 
-    // Handle read receipt
+    // Handle read receipt (single message)
     socket.on('message_read', (data) => {
       socket.to(`conversation_${data.conversation_id}`).emit('read_receipt', {
         user_id: userId,
-        message_id: data.message_id
+        message_id: data.message_id,
+        read_at: new Date()
+      });
+    });
+    
+    // Handle bulk messages read
+    socket.on('messages_read', (data) => {
+      console.log(`📖 User ${userId} read ${data.message_ids?.length || 0} messages in conversation ${data.conversation_id}`);
+      
+      // Broadcast to all users in the conversation
+      socket.to(`conversation_${data.conversation_id}`).emit('messages_read_receipt', {
+        user_id: userId,
+        conversation_id: data.conversation_id,
+        message_ids: data.message_ids,
+        read_at: new Date()
+      });
+    });
+    
+    // Handle message edited
+    socket.on('message_edited', (data) => {
+      console.log(`✏️ User ${userId} edited message ${data.message_id} in conversation ${data.conversation_id}`);
+      
+      // Broadcast to all users in the conversation (including sender for confirmation)
+      io.to(`conversation_${data.conversation_id}`).emit('message_edited', {
+        message_id: data.message_id,
+        conversation_id: data.conversation_id,
+        content: data.content,
+        is_edited: true,
+        edited_by: userId,
+        edited_at: new Date()
+      });
+    });
+
+    // Handle reaction added
+    socket.on('reaction_added', (data) => {
+      console.log(`😀 User ${userId} added reaction ${data.emoji} to message ${data.message_id}`);
+      
+      io.to(`conversation_${data.conversation_id}`).emit('reaction_updated', {
+        message_id: data.message_id,
+        conversation_id: data.conversation_id,
+        reactions: data.reactions,
+        action: 'add',
+        emoji: data.emoji,
+        user_id: userId
+      });
+    });
+
+    // Handle reaction removed
+    socket.on('reaction_removed', (data) => {
+      console.log(`😶 User ${userId} removed reaction ${data.emoji} from message ${data.message_id}`);
+      
+      io.to(`conversation_${data.conversation_id}`).emit('reaction_updated', {
+        message_id: data.message_id,
+        conversation_id: data.conversation_id,
+        reactions: data.reactions,
+        action: 'remove',
+        emoji: data.emoji,
+        user_id: userId
+      });
+    });
+
+    // Handle message pinned
+    socket.on('message_pinned', (data) => {
+      console.log(`📌 User ${userId} pinned message ${data.message_id} in conversation ${data.conversation_id}`);
+      
+      io.to(`conversation_${data.conversation_id}`).emit('pin_updated', {
+        message_id: data.message_id,
+        conversation_id: data.conversation_id,
+        action: 'pin',
+        pinned_by: userId
+      });
+    });
+
+    // Handle message unpinned
+    socket.on('message_unpinned', (data) => {
+      console.log(`📌 User ${userId} unpinned message ${data.message_id} in conversation ${data.conversation_id}`);
+      
+      io.to(`conversation_${data.conversation_id}`).emit('pin_updated', {
+        message_id: data.message_id,
+        conversation_id: data.conversation_id,
+        action: 'unpin',
+        unpinned_by: userId
+      });
+    });
+
+    // Handle thread reply sent
+    socket.on('thread_reply_sent', (data) => {
+      console.log(`💬 User ${userId} replied to thread ${data.thread_id}`);
+      
+      io.to(`conversation_${data.conversation_id}`).emit('thread_updated', {
+        thread_id: data.thread_id,
+        conversation_id: data.conversation_id,
+        reply_count: data.reply_count,
+        last_reply: data.message
       });
     });
 
@@ -92,6 +234,24 @@ export const setupSocketIO = (io) => {
         is_online: status.is_online,
         last_seen: status.last_seen
       });
+    });
+    
+    // Handle request for user statuses
+    socket.on('get_user_statuses', async (userIds) => {
+      try {
+        const users = await User.find({ _id: { $in: userIds } })
+          .select('_id is_online last_seen');
+        
+        const statusUpdates = users.map(u => ({
+          user_id: u._id.toString(),
+          is_online: u.is_online || false,
+          last_seen: u.last_seen || new Date()
+        }));
+        
+        socket.emit('user_statuses_response', statusUpdates);
+      } catch (err) {
+        console.error('Get user statuses error:', err);
+      }
     });
 
     // Handle disconnect

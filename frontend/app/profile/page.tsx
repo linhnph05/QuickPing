@@ -2,22 +2,23 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, Save, User as UserIcon, Loader2, ArrowLeft } from 'lucide-react';
+import { Save, User as UserIcon, Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { apiClient } from '@/lib/api-client';
-import { Badge } from '@/components/ui/badge';
+import { AvatarUploadDropzone } from '@/components/profile/avatar-upload-dropzone';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, refetch } = useUser();
   const [saving, setSaving] = useState(false);
 
   // Profile state
@@ -37,9 +38,36 @@ export default function ProfilePage() {
         bio: user.bio || '',
         avatar_url: user.avatar_url || '',
         mssv: user.mssv || '',
-  });
+      });
     }
   }, [user]);
+
+  const handleAvatarUpload = async (url: string) => {
+    // Update local state immediately for visual feedback
+    setProfile(prev => ({ ...prev, avatar_url: url }));
+    
+    try {
+      // Save to backend
+      await apiClient.users.updateProfile({
+        avatar_url: url,
+      });
+      
+      // Update localStorage
+      if (user) {
+        const updatedUser = { ...user, avatar_url: url };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+      
+      // Refetch user data
+      if (refetch) {
+        refetch();
+      }
+    } catch (error) {
+      console.error('Error updating avatar:', error);
+      // Revert on error
+      setProfile(prev => ({ ...prev, avatar_url: user?.avatar_url || '' }));
+    }
+  };
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -54,6 +82,11 @@ export default function ProfilePage() {
       if (user) {
         const updatedUser = { ...user, ...profile };
         localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+      
+      // Refetch user data
+      if (refetch) {
+        refetch();
       }
       
       alert('Cập nhật profile thành công!');
@@ -122,19 +155,16 @@ export default function ProfilePage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
               {/* Avatar Section */}
-              <div className="flex flex-col sm:flex-row items-center gap-6">
-                <div className="relative">
-                  <Avatar className="h-32 w-32">
-                      <AvatarImage src={profile.avatar_url} />
-                    <AvatarFallback className="text-4xl">
-                        {profile.username?.[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  {user?.is_online && (
-                    <div className="absolute bottom-2 right-2 h-6 w-6 rounded-full bg-green-500 border-4 border-background" />
-                  )}
-                </div>
-                <div className="flex-1 text-center sm:text-left">
+              <div className="flex flex-col sm:flex-row items-start gap-6">
+                {/* Avatar Upload Dropzone */}
+                <AvatarUploadDropzone
+                  currentAvatarUrl={profile.avatar_url}
+                  username={profile.username}
+                  onAvatarChange={handleAvatarUpload}
+                />
+                
+                {/* User Info */}
+                <div className="flex-1 text-center sm:text-left pt-4">
                   <h2 className="text-2xl font-bold">{profile.username}</h2>
                   <p className="text-muted-foreground">{profile.email}</p>
                   {user?.role && (
@@ -142,17 +172,13 @@ export default function ProfilePage() {
                       {user.role}
                     </Badge>
                   )}
-                  <div className="mt-4">
-                      <Button variant="outline" size="sm">
-                        <Camera className="h-4 w-4 mr-2" />
-                        Đổi ảnh đại diện
-                      </Button>
-                    <p className="text-xs text-muted-foreground mt-2">
-                        JPG, PNG hoặc GIF. Tối đa 5MB.
-                      </p>
-                  </div>
-                    </div>
-                  </div>
+                  {user?.is_online && (
+                    <Badge variant="default" className="mt-2 ml-2 bg-green-500">
+                      Online
+                    </Badge>
+                  )}
+                </div>
+              </div>
 
                   <Separator />
 

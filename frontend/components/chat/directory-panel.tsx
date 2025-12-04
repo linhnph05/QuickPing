@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, FileText, Image, FileSpreadsheet, File, MoreHorizontal, UserPlus, Crown, Shield, User as UserIcon, UserMinus, LogOut } from 'lucide-react';
+import { Download, FileText, Image, FileSpreadsheet, File, MoreHorizontal, UserPlus, LogOut, Settings } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
@@ -9,8 +9,11 @@ import { apiClient } from '@/lib/api-client';
 import { User, FileAttachment, Conversation } from '@/types';
 import { cn } from '@/lib/utils';
 import { AddMembersModal } from '@/components/modals/add-members-modal';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { RoleManagementModal } from '@/components/modals/role-management-modal';
+import { GroupSettingsModal } from '@/components/modals/group-settings-modal';
 import { useUserStatus } from '@/contexts/UserStatusContext';
+import { RoleBadge, RoleIcon } from '@/components/ui/role-badge';
+import { StatusIndicator } from '@/components/ui/status-indicator';
 
 interface DirectoryPanelProps {
   conversation?: Conversation | null;
@@ -22,7 +25,10 @@ export function DirectoryPanel({ conversation, onConversationUpdated }: Director
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
-  const [currentUserRole, setCurrentUserRole] = useState<string>('member');
+  const [currentUserRole, setCurrentUserRole] = useState<'admin' | 'moderator' | 'member'>('member');
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<User | null>(null);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { isUserOnline } = useUserStatus();
 
   useEffect(() => {
@@ -162,24 +168,23 @@ export function DirectoryPanel({ conversation, onConversationUpdated }: Director
     }
   };
 
-  const handleRemoveMember = async (memberId: string) => {
-    if (!conversation) return;
-    
-    if (!confirm('Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?')) {
-      return;
-    }
-    
-    try {
-      await apiClient.conversations.removeParticipant(conversation._id, memberId);
-      fetchTeamMembers();
-      // Reload conversation
-      const response = await api.get(`/conversations/${conversation._id}`);
-      const updatedConversation = response.data.conversation;
-      onConversationUpdated?.(updatedConversation);
-    } catch (error: any) {
-      console.error('Error removing member:', error);
-      alert(error?.response?.data?.error || 'Không thể xóa thành viên. Vui lòng thử lại.');
-    }
+  const openRoleModal = (member: User) => {
+    setSelectedMember(member);
+    setRoleModalOpen(true);
+  };
+
+  const handleRoleChangeFromModal = async (newRole: 'admin' | 'moderator' | 'member') => {
+    if (!selectedMember) return;
+    await handleChangeRole(selectedMember._id, newRole);
+  };
+
+  const handleRemoveMemberFromModal = async () => {
+    if (!selectedMember || !conversation) return;
+    await apiClient.conversations.removeParticipant(conversation._id, selectedMember._id);
+    fetchTeamMembers();
+    const response = await api.get(`/conversations/${conversation._id}`);
+    const updatedConversation = response.data.conversation;
+    onConversationUpdated?.(updatedConversation);
   };
 
   const handleLeaveGroup = async () => {
@@ -225,9 +230,19 @@ export function DirectoryPanel({ conversation, onConversationUpdated }: Director
       <div className="flex flex-col flex-shrink-0">
         <div className="flex items-center justify-between px-6 py-6">
           <h2 className="text-[20px] font-semibold">Directory</h2>
-          <button className="w-10 h-10 flex items-center justify-center bg-[#EFEFFD] hover:bg-[#615EF0]/20 rounded-full transition-colors">
-            <MoreHorizontal className="w-6 h-6 text-[#615EF0]" strokeWidth={2} />
-          </button>
+          {conversation?.type === 'group' ? (
+            <button 
+              onClick={() => setSettingsModalOpen(true)}
+              className="w-10 h-10 flex items-center justify-center bg-[#EFEFFD] hover:bg-[#615EF0]/20 rounded-full transition-colors"
+              title="Group Settings"
+            >
+              <Settings className="w-6 h-6 text-[#615EF0]" strokeWidth={2} />
+            </button>
+          ) : (
+            <button className="w-10 h-10 flex items-center justify-center bg-[#EFEFFD] hover:bg-[#615EF0]/20 rounded-full transition-colors">
+              <MoreHorizontal className="w-6 h-6 text-[#615EF0]" strokeWidth={2} />
+            </button>
+          )}
         </div>
         <div className="h-px bg-black opacity-[0.08]" />
       </div>
@@ -274,87 +289,36 @@ export function DirectoryPanel({ conversation, onConversationUpdated }: Director
                           {member.username[0]?.toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
-                      {isUserOnline(member._id) && (
-                        <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-white" />
-                      )}
+                      <StatusIndicator 
+                        isOnline={isUserOnline(member._id)} 
+                        size="md"
+                        showOffline={false}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-[14px] font-semibold leading-[21px] truncate">{member.username}</p>
-                        {memberRole === 'admin' && (
-                          <Crown className="w-3.5 h-3.5 text-yellow-500" />
+                        <RoleIcon role={memberRole} size="sm" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {conversation?.type === 'group' && (
+                          <RoleBadge role={memberRole} size="sm" showIcon={false} />
                         )}
-                        {memberRole === 'moderator' && (
-                          <Shield className="w-3.5 h-3.5 text-blue-500" />
+                        {member.mssv && (
+                          <span className="text-[11px] text-gray-500">• {member.mssv}</span>
                         )}
                       </div>
-                      <p className="text-[12px] font-semibold text-gray-900 opacity-40 truncate">
-                        {member.mssv || memberRole === 'admin' ? 'Admin' : memberRole === 'moderator' ? 'Moderator' : 'Member'}
-                      </p>
                     </div>
                     
-                    {/* Role management menu for admins */}
+                    {/* Role management - open modal */}
                     {canManage && conversation?.type === 'group' && (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-200 rounded">
-                            <MoreHorizontal className="w-4 h-4 text-gray-600" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-48 p-1" align="end">
-                          <div className="space-y-1">
-                            <p className="text-xs font-semibold px-2 py-1 text-gray-500">Change Role</p>
-                            
-                            {memberRole !== 'admin' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full justify-start"
-                                onClick={() => handleChangeRole(member._id, 'admin')}
-                              >
-                                <Crown className="w-4 h-4 mr-2 text-yellow-500" />
-                                Promote to Admin
-                              </Button>
-                            )}
-                            
-                            {memberRole !== 'moderator' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full justify-start"
-                                onClick={() => handleChangeRole(member._id, 'moderator')}
-                              >
-                                <Shield className="w-4 h-4 mr-2 text-blue-500" />
-                                Promote to Moderator
-                              </Button>
-                            )}
-                            
-                            {memberRole !== 'member' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full justify-start"
-                                onClick={() => handleChangeRole(member._id, 'member')}
-                              >
-                                <UserIcon className="w-4 h-4 mr-2" />
-                                Demote to Member
-                              </Button>
-                            )}
-                            
-                            <div className="h-px bg-gray-200 my-1" />
-                            
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleRemoveMember(member._id)}
-                            >
-                              <UserMinus className="w-4 h-4 mr-2" />
-                              Remove from Group
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                      <button 
+                        onClick={() => openRoleModal(member)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-[#615EF0]/10 rounded-lg"
+                        title="Manage Role"
+                      >
+                        <MoreHorizontal className="w-4 h-4 text-[#615EF0]" />
+                      </button>
                     )}
                   </div>
                 );
@@ -470,6 +434,50 @@ export function DirectoryPanel({ conversation, onConversationUpdated }: Director
           conversationId={conversation._id}
           currentMembers={teamMembers.map((m) => m._id)}
           onMembersAdded={handleMembersAdded}
+        />
+      )}
+
+      {/* Role Management Modal */}
+      {selectedMember && conversation && (
+        <RoleManagementModal
+          open={roleModalOpen}
+          onOpenChange={(open) => {
+            setRoleModalOpen(open);
+            if (!open) setSelectedMember(null);
+          }}
+          member={selectedMember}
+          currentRole={getMemberRole(selectedMember._id)}
+          currentUserRole={currentUserRole}
+          onRoleChange={handleRoleChangeFromModal}
+          onRemoveMember={handleRemoveMemberFromModal}
+        />
+      )}
+
+      {/* Group Settings Modal */}
+      {conversation && conversation.type === 'group' && (
+        <GroupSettingsModal
+          open={settingsModalOpen}
+          onOpenChange={setSettingsModalOpen}
+          conversation={conversation}
+          currentUserId={typeof window !== 'undefined' && localStorage.getItem('user')
+            ? JSON.parse(localStorage.getItem('user')!)._id
+            : ''}
+          currentUserRole={currentUserRole}
+          onConversationUpdated={(updatedConversation) => {
+            onConversationUpdated?.(updatedConversation);
+          }}
+          onLeaveGroup={async () => {
+            const currentUserId = typeof window !== 'undefined' && localStorage.getItem('user')
+              ? JSON.parse(localStorage.getItem('user')!)._id
+              : null;
+            if (!currentUserId) return;
+            await apiClient.conversations.removeParticipant(conversation._id, currentUserId);
+            window.location.href = '/groups';
+          }}
+          onDeleteGroup={async () => {
+            await api.delete(`/conversations/${conversation._id}`);
+            window.location.href = '/groups';
+          }}
         />
       )}
     </div>

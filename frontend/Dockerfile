@@ -20,7 +20,6 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NEXT_PUBLIC_API_URL=http://localhost:5001/api
 ENV NEXT_PUBLIC_SOCKET_URL=http://localhost:5001
-ENV NEXT_PUBLIC_USE_MOCK=false
 
 # Build the application
 RUN npm run build

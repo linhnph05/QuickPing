@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Smile, Search, Clock, Heart, Coffee, Flag, Zap } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +12,8 @@ interface EmojiPickerProps {
   onEmojiSelect: (emoji: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  triggerRef?: React.RefObject<HTMLElement>;
+  position?: 'top' | 'bottom';
 }
 
 // Emoji categories
@@ -48,17 +50,77 @@ const emojiCategories = {
   }
 };
 
-export function EmojiPicker({ onEmojiSelect, isOpen, onClose }: EmojiPickerProps) {
+export function EmojiPicker({ onEmojiSelect, isOpen, onClose, triggerRef, position = 'top' }: EmojiPickerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [recentEmojis, setRecentEmojis] = useState<string[]>(
     emojiCategories.recent.emojis
   );
+  const [pickerPosition, setPickerPosition] = useState({ top: 0, left: 0 });
   const pickerRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Ensure component is mounted before using portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Calculate position based on trigger element
+  const calculatePosition = useCallback(() => {
+    if (!triggerRef?.current) return;
+    
+    const rect = triggerRef.current.getBoundingClientRect();
+    const pickerWidth = 350;
+    const pickerHeight = 420; // Approximate height
+    
+    let top: number;
+    let left = rect.left;
+    
+    // Adjust horizontal position if overflowing right
+    if (left + pickerWidth > window.innerWidth - 20) {
+      left = window.innerWidth - pickerWidth - 20;
+    }
+    // Adjust horizontal position if overflowing left
+    if (left < 20) {
+      left = 20;
+    }
+    
+    if (position === 'top') {
+      top = rect.top - pickerHeight - 8;
+      // If overflowing top, show below instead
+      if (top < 20) {
+        top = rect.bottom + 8;
+      }
+    } else {
+      top = rect.bottom + 8;
+      // If overflowing bottom, show above instead
+      if (top + pickerHeight > window.innerHeight - 20) {
+        top = rect.top - pickerHeight - 8;
+      }
+    }
+    
+    setPickerPosition({ top, left });
+  }, [triggerRef, position]);
+
+  useEffect(() => {
+    if (isOpen) {
+      calculatePosition();
+      window.addEventListener('resize', calculatePosition);
+      window.addEventListener('scroll', calculatePosition, true);
+    }
+    return () => {
+      window.removeEventListener('resize', calculatePosition);
+      window.removeEventListener('scroll', calculatePosition, true);
+    };
+  }, [isOpen, calculatePosition]);
 
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        // Also check if click is on trigger
+        if (triggerRef?.current && triggerRef.current.contains(event.target as Node)) {
+          return;
+        }
         onClose();
       }
     };
@@ -70,7 +132,7 @@ export function EmojiPicker({ onEmojiSelect, isOpen, onClose }: EmojiPickerProps
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, triggerRef]);
 
   const handleEmojiClick = (emoji: string) => {
     onEmojiSelect(emoji);
@@ -88,16 +150,21 @@ export function EmojiPicker({ onEmojiSelect, isOpen, onClose }: EmojiPickerProps
     return emojis.filter(() => Math.random() > 0.5);
   };
 
-  return (
+  // Use portal to render picker at document body level
+  const pickerContent = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
           ref={pickerRef}
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.15 }}
-          className="absolute bottom-full right-0 mb-2 w-[350px] bg-background border rounded-lg shadow-2xl z-50"
+          style={triggerRef ? { position: 'fixed', top: pickerPosition.top, left: pickerPosition.left } : {}}
+          className={triggerRef 
+            ? "w-[350px] bg-background border rounded-lg shadow-2xl z-[9999]" 
+            : "absolute bottom-full right-0 mb-2 w-[350px] bg-background border rounded-lg shadow-2xl z-[9999]"
+          }
         >
           {/* Header */}
           <div className="p-3 border-b">
@@ -155,5 +222,12 @@ export function EmojiPicker({ onEmojiSelect, isOpen, onClose }: EmojiPickerProps
       )}
     </AnimatePresence>
   );
+
+  // Render with portal if triggerRef is provided, otherwise render inline
+  if (triggerRef && mounted) {
+    return createPortal(pickerContent, document.body);
+  }
+
+  return pickerContent;
 }
 

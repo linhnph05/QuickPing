@@ -36,15 +36,59 @@ router.get('/conversation/:conversationId', authenticate, async (req, res) => {
 
     const messages = await Message.find(query)
       .populate('sender_id', 'username avatar_url')
-      .populate('reply_to')
+      .populate({
+        path: 'reply_to',
+        populate: { path: 'sender_id', select: 'username avatar_url' }
+      })
       .populate('file_info.file_id')
       .populate('read_by.user_id', 'username avatar_url')
+      .populate('reactions.user_id', 'username avatar_url')
       .sort({ created_at: -1 })
       .limit(parseInt(limit));
 
     res.json({ messages: messages.reverse() });
   } catch (error) {
     console.error('Get messages error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get thread replies
+router.get('/thread/:threadId', authenticate, async (req, res) => {
+  try {
+    const { threadId } = req.params;
+    const { limit = 50 } = req.query;
+
+    // First find the parent message to verify access
+    const parentMessage = await Message.findById(threadId);
+    if (!parentMessage) {
+      return res.status(404).json({ error: 'Thread not found' });
+    }
+
+    // Check if user is participant in the conversation
+    const conversation = await Conversation.findById(parentMessage.conversation_id);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const isParticipant = conversation.participants.some(
+      p => p.user_id.toString() === req.user._id.toString()
+    );
+
+    if (!isParticipant) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Get all replies to this thread
+    const messages = await Message.find({ thread_id: threadId })
+      .populate('sender_id', 'username avatar_url')
+      .populate('reactions.user_id', 'username avatar_url')
+      .sort({ created_at: 1 })
+      .limit(parseInt(limit));
+
+    res.json({ messages });
+  } catch (error) {
+    console.error('Get thread error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -230,11 +274,16 @@ router.post('/:messageId/read', authenticate, async (req, res) => {
     if (!message) {
       return res.status(404).json({ error: 'Message not found' });
     }
-
-    // Remove existing read_by entry
-    message.read_by = message.read_by.filter(
-      r => r.user_id.toString() !== req.user._id.toString()
+    
+    // Check if already read by this user
+    const alreadyRead = message.read_by.some(
+      r => r.user_id.toString() === req.user._id.toString()
     );
+    
+    if (alreadyRead) {
+      // Already read, just return the message
+      return res.json({ message });
+    }
 
     // Add new read_by entry
     message.read_by.push({
@@ -243,6 +292,21 @@ router.post('/:messageId/read', authenticate, async (req, res) => {
     });
 
     await message.save();
+    
+    // Emit socket event for read receipt
+    if (io) {
+      const conversationIdStr = message.conversation_id.toString();
+      const room = `conversation_${conversationIdStr}`;
+      
+      console.log(`📖 User ${req.user._id} marked message ${message._id} as read`);
+      
+      io.to(room).emit('read_receipt', {
+        user_id: req.user._id.toString(),
+        message_id: message._id.toString(),
+        conversation_id: conversationIdStr,
+        read_at: new Date()
+      });
+    }
 
     res.json({ message });
   } catch (error) {

@@ -1,0 +1,346 @@
+'use client';
+
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Plus,
+  Trash2,
+  BarChart3,
+  Clock,
+  Users,
+  Eye,
+  EyeOff,
+  AlertCircle,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
+
+interface CreateVoteModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreateVote: (data: {
+    question: string;
+    options: string[];
+    settings: { allow_multiple: boolean; anonymous: boolean };
+    expires_at?: string;
+  }) => Promise<void>;
+}
+
+const EXPIRY_OPTIONS = [
+  { value: 'none', label: 'Không giới hạn' },
+  { value: '1h', label: '1 giờ' },
+  { value: '6h', label: '6 giờ' },
+  { value: '12h', label: '12 giờ' },
+  { value: '24h', label: '24 giờ' },
+  { value: '48h', label: '2 ngày' },
+  { value: '168h', label: '1 tuần' },
+];
+
+export function CreateVoteModal({
+  open,
+  onOpenChange,
+  onCreateVote,
+}: CreateVoteModalProps) {
+  const [question, setQuestion] = useState('');
+  const [options, setOptions] = useState<string[]>(['', '']);
+  const [allowMultiple, setAllowMultiple] = useState(false);
+  const [anonymous, setAnonymous] = useState(false);
+  const [expiryOption, setExpiryOption] = useState('24h');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ question?: string; options?: string }>({});
+
+  const resetForm = () => {
+    setQuestion('');
+    setOptions(['', '']);
+    setAllowMultiple(false);
+    setAnonymous(false);
+    setExpiryOption('24h');
+    setErrors({});
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onOpenChange(false);
+  };
+
+  const addOption = () => {
+    if (options.length < 10) {
+      setOptions([...options, '']);
+    }
+  };
+
+  const removeOption = (index: number) => {
+    if (options.length > 2) {
+      setOptions(options.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateOption = (index: number, value: string) => {
+    const newOptions = [...options];
+    newOptions[index] = value;
+    setOptions(newOptions);
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: { question?: string; options?: string } = {};
+
+    if (!question.trim()) {
+      newErrors.question = 'Vui lòng nhập câu hỏi';
+    }
+
+    const filledOptions = options.filter((opt) => opt.trim());
+    if (filledOptions.length < 2) {
+      newErrors.options = 'Cần ít nhất 2 lựa chọn';
+    }
+
+    const uniqueOptions = new Set(filledOptions.map((opt) => opt.toLowerCase().trim()));
+    if (uniqueOptions.size !== filledOptions.length) {
+      newErrors.options = 'Các lựa chọn không được trùng nhau';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const calculateExpiryDate = (): string | undefined => {
+    if (expiryOption === 'none') return undefined;
+
+    const hours = parseInt(expiryOption.replace('h', ''));
+    const expiryDate = new Date();
+    expiryDate.setHours(expiryDate.getHours() + hours);
+    return expiryDate.toISOString();
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    try {
+      const filledOptions = options.filter((opt) => opt.trim());
+      await onCreateVote({
+        question: question.trim(),
+        options: filledOptions,
+        settings: {
+          allow_multiple: allowMultiple,
+          anonymous: anonymous,
+        },
+        expires_at: calculateExpiryDate(),
+      });
+      handleClose();
+    } catch (error) {
+      console.error('Failed to create vote:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden">
+        {/* Header */}
+        <DialogHeader className="p-6 pb-4 bg-gradient-to-r from-[#615EF0]/5 to-[#615EF0]/10">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-[#615EF0]/10 rounded-xl flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-[#615EF0]" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-bold">Tạo bình chọn</DialogTitle>
+              <p className="text-sm text-gray-500 mt-0.5">Tạo cuộc bình chọn cho nhóm</p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {/* Content */}
+        <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
+          {/* Question Input */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              Câu hỏi <span className="text-red-500">*</span>
+            </label>
+            <Input
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="Nhập câu hỏi bình chọn..."
+              className={cn(
+                'focus-visible:ring-[#615EF0]',
+                errors.question && 'border-red-500 focus-visible:ring-red-500'
+              )}
+              maxLength={200}
+            />
+            {errors.question && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.question}
+              </p>
+            )}
+            <p className="text-xs text-gray-400 text-right">{question.length}/200</p>
+          </div>
+
+          {/* Options */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              Lựa chọn <span className="text-red-500">*</span>
+            </label>
+            <div className="space-y-2">
+              {options.map((option, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2"
+                >
+                  <span className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-medium text-gray-500">
+                    {index + 1}
+                  </span>
+                  <Input
+                    value={option}
+                    onChange={(e) => updateOption(index, e.target.value)}
+                    placeholder={`Lựa chọn ${index + 1}`}
+                    className="flex-1 focus-visible:ring-[#615EF0]"
+                    maxLength={100}
+                  />
+                  {options.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => removeOption(index)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+            {errors.options && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.options}
+              </p>
+            )}
+            {options.length < 10 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addOption}
+                className="w-full mt-2 border-dashed"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Thêm lựa chọn
+              </Button>
+            )}
+            <p className="text-xs text-gray-400">{options.length}/10 lựa chọn</p>
+          </div>
+
+          {/* Settings */}
+          <div className="space-y-4 pt-4 border-t border-gray-100">
+            <p className="text-sm font-medium text-gray-700">Cài đặt</p>
+
+            {/* Allow Multiple */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                  <Users className="w-4 h-4 text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Cho phép chọn nhiều</p>
+                  <p className="text-xs text-gray-500">Người dùng có thể chọn nhiều lựa chọn</p>
+                </div>
+              </div>
+              <Switch
+                checked={allowMultiple}
+                onCheckedChange={setAllowMultiple}
+              />
+            </div>
+
+            {/* Anonymous */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                  {anonymous ? (
+                    <EyeOff className="w-4 h-4 text-gray-600" />
+                  ) : (
+                    <Eye className="w-4 h-4 text-gray-600" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Bình chọn ẩn danh</p>
+                  <p className="text-xs text-gray-500">Ẩn danh tính người bình chọn</p>
+                </div>
+              </div>
+              <Switch checked={anonymous} onCheckedChange={setAnonymous} />
+            </div>
+
+            {/* Expiry */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                  <Clock className="w-4 h-4 text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Thời hạn</p>
+                  <p className="text-xs text-gray-500">Tự động kết thúc sau</p>
+                </div>
+              </div>
+              <Select value={expiryOption} onValueChange={setExpiryOption}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EXPIRY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t p-4 flex justify-end gap-3 bg-gray-50">
+          <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+            Hủy
+          </Button>
+          <Button
+            className="bg-[#615EF0] hover:bg-[#5048D9]"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
+                />
+                Đang tạo...
+              </>
+            ) : (
+              <>
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Tạo bình chọn
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

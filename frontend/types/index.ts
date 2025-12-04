@@ -32,6 +32,12 @@ export interface Conversation {
   updated_at: Date;
 }
 
+// Read receipt with populated user data
+export interface ReadReceipt {
+  user_id: string | User;
+  read_at: Date;
+}
+
 export interface Message {
   _id: string;
   conversation_id: string;
@@ -43,6 +49,7 @@ export interface Message {
     filename: string;
     mime_type: string;
     size: number;
+    url?: string;
   };
   reply_to?: Message;
   thread_id?: string;
@@ -51,12 +58,37 @@ export interface Message {
     emoji: string;
     user_id: string;
   }>;
-  read_by?: Array<{
-    user_id: string;
-    read_at: Date;
-  }>;
+  read_by?: ReadReceipt[];
   created_at: Date;
   updated_at: Date;
+}
+
+// Role types
+export type RoleType = 'admin' | 'moderator' | 'member';
+
+// Role permission configuration
+export interface RolePermissions {
+  canManageMembers: boolean;
+  canChangeRoles: boolean;
+  canRemoveMembers: boolean;
+  canEditGroupInfo: boolean;
+  canPinMessages: boolean;
+  canDeleteMessages: boolean;
+  canInviteMembers: boolean;
+}
+
+// Role change log entry
+export interface RoleChangeLog {
+  _id: string;
+  conversation_id: string;
+  target_user_id: string;
+  target_username: string;
+  changed_by_user_id: string;
+  changed_by_username: string;
+  old_role: RoleType;
+  new_role: RoleType;
+  reason?: string;
+  created_at: Date;
 }
 
 export interface FileAttachment {
@@ -70,5 +102,29 @@ export interface FileAttachment {
   conversation_id?: string;
   message_id?: string;
   upload_date: Date;
+}
+
+// Vote types
+export interface VoteOption {
+  text: string;
+  voters: string[];
+}
+
+export interface VoteSettings {
+  allow_multiple: boolean;
+  anonymous: boolean;
+}
+
+export interface Vote {
+  _id: string;
+  conversation_id: string;
+  created_by: User;
+  question: string;
+  options: VoteOption[];
+  settings: VoteSettings;
+  expires_at?: Date;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
 }
 
